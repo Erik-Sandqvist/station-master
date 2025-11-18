@@ -37,6 +37,7 @@ const DailyPlanning = () => {
   const [assignments, setAssignments] = useState<Record<string, string[]>>({});
   const [flManual, setFlManual] = useState("");
   const [loading, setLoading] = useState(false);
+  const [draggedEmployee, setDraggedEmployee] = useState<{ id: string; fromStation: string } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -216,6 +217,74 @@ const DailyPlanning = () => {
     return employees.find((e) => e.id === id)?.name || id;
   };
 
+  const handleDragStart = (employeeId: string, fromStation: string) => {
+    setDraggedEmployee({ id: employeeId, fromStation });
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = async (toStation: string) => {
+    if (!draggedEmployee || draggedEmployee.fromStation === toStation) {
+      setDraggedEmployee(null);
+      return;
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+    setLoading(true);
+
+    // Remove from old station
+    const updatedAssignments = { ...assignments };
+    updatedAssignments[draggedEmployee.fromStation] = updatedAssignments[draggedEmployee.fromStation].filter(
+      (id) => id !== draggedEmployee.id
+    );
+
+    // Add to new station
+    if (!updatedAssignments[toStation]) {
+      updatedAssignments[toStation] = [];
+    }
+    updatedAssignments[toStation].push(draggedEmployee.id);
+
+    // Update database - delete old assignment
+    await supabase
+      .from("daily_assignments")
+      .delete()
+      .eq("employee_id", draggedEmployee.id)
+      .eq("assigned_date", today)
+      .eq("station", draggedEmployee.fromStation);
+
+    // Insert new assignment
+    await supabase.from("daily_assignments").insert({
+      employee_id: draggedEmployee.id,
+      station: toStation,
+      assigned_date: today,
+    });
+
+    // Update work history
+    await supabase
+      .from("work_history")
+      .delete()
+      .eq("employee_id", draggedEmployee.id)
+      .eq("work_date", today)
+      .eq("station", draggedEmployee.fromStation);
+
+    await supabase.from("work_history").insert({
+      employee_id: draggedEmployee.id,
+      station: toStation,
+      work_date: today,
+    });
+
+    setAssignments(updatedAssignments);
+    setDraggedEmployee(null);
+    setLoading(false);
+
+    toast({
+      title: "Flyttad!",
+      description: `${getEmployeeName(draggedEmployee.id)} har flyttats till ${toStation}`,
+    });
+  };
+
   return (
     <div className="space-y-6">
       <Card className="shadow-lg border-border/50">
@@ -335,7 +404,12 @@ const DailyPlanning = () => {
                 if (assigned.length === 0 && station !== "FL") return null;
 
                 return (
-                  <Card key={station} className="p-4 bg-secondary/30">
+                  <Card
+                    key={station}
+                    className="p-4 bg-secondary/30 transition-colors"
+                    onDragOver={handleDragOver}
+                    onDrop={() => handleDrop(station)}
+                  >
                     <h3 className="font-semibold text-lg mb-2 text-primary">
                       {station}
                     </h3>
@@ -344,7 +418,12 @@ const DailyPlanning = () => {
                     ) : (
                       <ul className="space-y-1">
                         {assigned.map((empId, idx) => (
-                          <li key={idx} className="text-sm">
+                          <li
+                            key={idx}
+                            draggable
+                            onDragStart={() => handleDragStart(empId, station)}
+                            className="text-sm cursor-move p-2 rounded hover:bg-secondary/50 transition-colors"
+                          >
                             • {getEmployeeName(empId)}
                           </li>
                         ))}
