@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, UserCheck, UserX } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -13,11 +14,13 @@ interface Employee {
   name: string;
   is_active: boolean;
   created_at: string;
+  shift: string;
 }
 
 const EmployeeManagement = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [newEmployeeName, setNewEmployeeName] = useState("");
+  const [newEmployeeShift, setNewEmployeeShift] = useState("Skift 1");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -55,7 +58,7 @@ const EmployeeManagement = () => {
     setLoading(true);
     const { error } = await supabase
       .from("employees")
-      .insert([{ name: newEmployeeName.trim() }]);
+      .insert([{ name: newEmployeeName.trim(), shift: newEmployeeShift }]);
 
     if (error) {
       toast({
@@ -69,6 +72,7 @@ const EmployeeManagement = () => {
         description: `${newEmployeeName} har lagts till`,
       });
       setNewEmployeeName("");
+      setNewEmployeeShift("Skift 1");
       fetchEmployees();
     }
     setLoading(false);
@@ -138,6 +142,19 @@ const EmployeeManagement = () => {
               onKeyDown={(e) => e.key === "Enter" && addEmployee()}
             />
           </div>
+          <div className="w-40 space-y-2">
+            <Label htmlFor="employee-shift">Skift</Label>
+            <Select value={newEmployeeShift} onValueChange={setNewEmployeeShift}>
+              <SelectTrigger id="employee-shift">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Skift 1">Skift 1</SelectItem>
+                <SelectItem value="Skift 2">Skift 2</SelectItem>
+                <SelectItem value="Natt">Natt</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex items-end">
             <Button
               onClick={addEmployee}
@@ -177,6 +194,7 @@ const EmployeeManagement = () => {
                     >
                       {employee.is_active ? "Aktiv" : "Inaktiv"}
                     </Badge>
+                    <Badge variant="outline">{employee.shift}</Badge>
                   </div>
                   <div className="flex gap-2">
                     <Button

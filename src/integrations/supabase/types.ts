@@ -52,18 +52,21 @@ export type Database = {
           id: string
           is_active: boolean | null
           name: string
+          shift: string | null
         }
         Insert: {
           created_at?: string | null
           id?: string
           is_active?: boolean | null
           name: string
+          shift?: string | null
         }
         Update: {
           created_at?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
+          shift?: string | null
         }
         Relationships: []
       }
