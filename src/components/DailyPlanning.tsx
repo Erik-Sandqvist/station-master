@@ -4,13 +4,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar, Users, Shuffle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Calendar, Users, Shuffle, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 interface Employee {
   id: string;
   name: string;
+  shift: string;
 }
 
 interface StationNeed {
@@ -38,6 +50,15 @@ const DailyPlanning = () => {
   const [flManual, setFlManual] = useState("");
   const [loading, setLoading] = useState(false);
   const [draggedEmployee, setDraggedEmployee] = useState<{ id: string; fromStation: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [shiftFilter, setShiftFilter] = useState<string>("Alla");
+  const [warningDialog, setWarningDialog] = useState<{
+    show: boolean;
+    employeeName: string;
+    toStation: string;
+    count: number;
+    onConfirm: () => void;
+  } | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -49,7 +70,7 @@ const DailyPlanning = () => {
   const fetchEmployees = async () => {
     const { data } = await supabase
       .from("employees")
-      .select("id, name")
+      .select("id, name, shift")
       .eq("is_active", true)
       .order("name");
 
@@ -231,6 +252,29 @@ const DailyPlanning = () => {
       return;
     }
 
+    // Check if employee has been at this station too often
+    const history = await getEmployeeHistory(draggedEmployee.id);
+    const stationCount = history[toStation] || 0;
+    const avgCount = Object.values(history).reduce((a, b) => a + b, 0) / Object.keys(history).length || 0;
+    
+    if (stationCount > avgCount * 1.5 && stationCount > 5) {
+      // Show warning dialog
+      setWarningDialog({
+        show: true,
+        employeeName: getEmployeeName(draggedEmployee.id),
+        toStation,
+        count: stationCount,
+        onConfirm: () => performMove(toStation),
+      });
+      return;
+    }
+
+    await performMove(toStation);
+  };
+
+  const performMove = async (toStation: string) => {
+    if (!draggedEmployee) return;
+
     const today = new Date().toISOString().split("T")[0];
     setLoading(true);
 
@@ -277,6 +321,7 @@ const DailyPlanning = () => {
 
     setAssignments(updatedAssignments);
     setDraggedEmployee(null);
+    setWarningDialog(null);
     setLoading(false);
 
     toast({
@@ -284,6 +329,12 @@ const DailyPlanning = () => {
       description: `${getEmployeeName(draggedEmployee.id)} har flyttats till ${toStation}`,
     });
   };
+
+  const filteredEmployees = employees.filter((emp) => {
+    const matchesSearch = emp.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesShift = shiftFilter === "Alla" || emp.shift === shiftFilter;
+    return matchesSearch && matchesShift;
+  });
 
   return (
     <div className="space-y-6">
@@ -342,8 +393,31 @@ const DailyPlanning = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex gap-4 mb-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Sök medarbetare..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={shiftFilter} onValueChange={setShiftFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Alla">Alla skift</SelectItem>
+                <SelectItem value="Skift 1">Skift 1</SelectItem>
+                <SelectItem value="Skift 2">Skift 2</SelectItem>
+                <SelectItem value="Natt">Natt</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {employees.map((employee) => (
+            {filteredEmployees.map((employee) => (
               <div
                 key={employee.id}
                 className="flex items-center space-x-2 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
@@ -436,6 +510,25 @@ const DailyPlanning = () => {
           </CardContent>
         </Card>
       )}
+
+      <AlertDialog open={warningDialog?.show} onOpenChange={(open) => !open && setWarningDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Varning: Ofta besökt station</AlertDialogTitle>
+            <AlertDialogDescription>
+              {warningDialog?.employeeName} har varit på {warningDialog?.toStation}{" "}
+              {warningDialog?.count} gånger under de senaste 6 månaderna, vilket är mer än genomsnittet.
+              Är du säker på att du vill flytta till denna station?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction onClick={() => warningDialog?.onConfirm()}>
+              Bekräfta flytt
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
