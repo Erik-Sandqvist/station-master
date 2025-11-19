@@ -402,19 +402,23 @@ const DailyPlanning = () => {
                       [station]: parseInt(e.target.value) || 0,
                     })
                   }
-                  className="text-center font-semibold"
+                  className="text-center font-semibold bg-sidebar-input"
                   disabled={station === "FL"}
                 />
               </div>
             ))}
           </div>
+          <div className="flex justify-center">
           <Button
-            onClick={saveStationNeeds}
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-primary to-accent"
-          >
-            Spara behov
-          </Button>
+          onClick={saveStationNeeds}
+          disabled={loading}
+          className="w-3/5 h-12 bg-gradient-to-r from-primary to-white backdrop-blur-lg border
+            shadow-2xl hover:from-primary/70 hover:to-secondary/70 hover:shadow-3xl
+            transition-all duration-300 hover:scale-[1.02] text-xl"
+            >
+         Spara behov
+        </Button>
+        </div>
         </CardContent>
       </Card>
 
@@ -429,77 +433,73 @@ const DailyPlanning = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-4 mb-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Sök medarbetare..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Select value={shiftFilter} onValueChange={setShiftFilter}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Alla">Alla skift</SelectItem>
-                <SelectItem value="Skift 1">Skift 1</SelectItem>
-                <SelectItem value="Skift 2">Skift 2</SelectItem>
-                <SelectItem value="Natt">Natt</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+  <div className="flex gap-4 mb-4">
+    <div className="flex-1 relative">
+      <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+      <Input
+        placeholder="Sök medarbetare..."
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        className="pl-9 bg-sidebar-input"
+      />
+    </div>
+    <Select value={shiftFilter} onValueChange={setShiftFilter}>
+      <SelectTrigger className="w-40 bg-sidebar-input">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="Alla">Alla skift</SelectItem>
+        <SelectItem value="Skift 1">Skift 1</SelectItem>
+        <SelectItem value="Skift 2">Skift 2</SelectItem>
+        <SelectItem value="Natt">Natt</SelectItem>
+      </SelectContent>
+    </Select>
+    <Button
+      variant="outline"
+      onClick={() => {
+        if (selectedEmployees.length === filteredEmployees.length) {
+          // Avmarkera alla
+          setSelectedEmployees([]);
+        } else {
+          // Välj alla filtrerade medarbetare
+          setSelectedEmployees(filteredEmployees.map(e => e.id));
+        }
+      }}
+      className="whitespace-nowrap"
+    >
+      {selectedEmployees.length === filteredEmployees.length ? 'Avmarkera alla' : 'Välj alla'}
+    </Button>
+  </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {filteredEmployees.map((employee) => (
-              <div
-                key={employee.id}
-                className="flex items-center space-x-2 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
-              >
-                <Checkbox
-                  id={employee.id}
-                  checked={selectedEmployees.includes(employee.id)}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      setSelectedEmployees([...selectedEmployees, employee.id]);
-                    } else {
-                      setSelectedEmployees(
-                        selectedEmployees.filter((id) => id !== employee.id)
-                      );
-                    }
-                  }}
-                />
-                <label
-                  htmlFor={employee.id}
-                  className="text-sm font-medium leading-none cursor-pointer"
-                >
-                  {employee.name}
-                </label>
-              </div>
-            ))}
-          </div>
-
-          <div className="space-y-2 pt-4 border-t">
-            <Label htmlFor="fl-manual">FL Station (Manuell tilldelning)</Label>
-            <Input
-              id="fl-manual"
-              placeholder="Skriv namn för FL station..."
-              value={flManual}
-              onChange={(e) => setFlManual(e.target.value)}
-            />
-          </div>
-
-          <Button
-            onClick={distributeEmployees}
-            disabled={loading || selectedEmployees.length === 0}
-            className="w-full gap-2 bg-gradient-to-r from-accent to-primary"
-          >
-            <Shuffle className="h-4 w-4" />
-            Fördela medarbetare till stationer
-          </Button>
-        </CardContent>
+  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+    {filteredEmployees.map((employee) => (
+      <div
+        key={employee.id}
+        className="flex items-center space-x-2 p-3 rounded-lg bg-secondary/50 hover:bg-slate-200 hover:backdrop-blur-lg"
+      >
+        <Checkbox
+          id={employee.id}
+          checked={selectedEmployees.includes(employee.id)}
+          onCheckedChange={(checked) => {
+            if (checked) {
+              setSelectedEmployees([...selectedEmployees, employee.id]);
+            } else {
+              setSelectedEmployees(
+                selectedEmployees.filter((id) => id !== employee.id)
+              );
+            }
+          }}
+        />
+        <label
+          htmlFor={employee.id}
+          className="text-sm font-medium leading-none cursor-pointer"
+        >
+          {employee.name}
+        </label>
+      </div>
+    ))}
+  </div>
+</CardContent>
       </Card>
 
       {Object.keys(assignments).length > 0 && (
@@ -516,7 +516,7 @@ const DailyPlanning = () => {
                 return (
                   <Card
                     key={station}
-                    className="p-4 bg-secondary/30 transition-colors"
+                    className="p-4 bg-secondary/30 hover:bg-secondary/50 transition-colors"
                     onDragOver={handleDragOver}
                     onDrop={() => handleDrop(station)}
                   >

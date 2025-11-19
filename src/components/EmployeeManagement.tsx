@@ -123,7 +123,7 @@ const EmployeeManagement = () => {
     <Card className="shadow-lg border-border/50">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <UserCheck className="h-6 w-6 text-primary" />
+          <UserCheck className="h-6 w-6" />
           Medarbetarhantering
         </CardTitle>
         <CardDescription>
@@ -135,6 +135,7 @@ const EmployeeManagement = () => {
           <div className="flex-1 space-y-2">
             <Label htmlFor="employee-name">Namn på medarbetare</Label>
             <Input
+              className="bg-sidebar-input"
               id="employee-name"
               placeholder="Ange namn..."
               value={newEmployeeName}
@@ -143,12 +144,12 @@ const EmployeeManagement = () => {
             />
           </div>
           <div className="w-40 space-y-2">
-            <Label htmlFor="employee-shift">Skift</Label>
+            <Label htmlFor="employee-shift" bg-sidebar-input>Skift</Label>
             <Select value={newEmployeeShift} onValueChange={setNewEmployeeShift}>
-              <SelectTrigger id="employee-shift">
+              <SelectTrigger id="employee-shift" className="bg-sidebar-input"> 
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="">
                 <SelectItem value="Skift 1">Skift 1</SelectItem>
                 <SelectItem value="Skift 2">Skift 2</SelectItem>
                 <SelectItem value="Natt">Natt</SelectItem>
@@ -159,7 +160,7 @@ const EmployeeManagement = () => {
             <Button
               onClick={addEmployee}
               disabled={loading}
-              className="gap-2 bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity"
+              className="gap-2 bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity"
             >
               <Plus className="h-4 w-4" />
               Lägg till
