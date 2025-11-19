@@ -32,9 +32,9 @@ interface StationNeed {
 
 const STATIONS = [
   "Plock",
-  "Autoplock",
+  "Auto Plock",
   "Pack",
-  "Auto pack",
+  "Auto Pack",
   "KM",
   "Decating",
   "In/Ut",
@@ -50,6 +50,7 @@ const DailyPlanning = () => {
   const [flManual, setFlManual] = useState("");
   const [loading, setLoading] = useState(false);
   const [draggedEmployee, setDraggedEmployee] = useState<{ id: string; fromStation: string } | null>(null);
+  const [draggedFrom, setDraggedFrom] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [shiftFilter, setShiftFilter] = useState<string>("Alla");
   const [warningDialog, setWarningDialog] = useState<{
@@ -240,6 +241,7 @@ const DailyPlanning = () => {
 
   const handleDragStart = (employeeId: string, fromStation: string) => {
     setDraggedEmployee({ id: employeeId, fromStation });
+    setDraggedFrom(fromStation);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -328,6 +330,40 @@ const DailyPlanning = () => {
       title: "Flyttad!",
       description: `${getEmployeeName(draggedEmployee.id)} har flyttats till ${toStation}`,
     });
+  };
+
+  const handleDropOnPackPosition = (station: string, targetIdx: number) => {
+    if (!draggedEmployee || !draggedFrom) return;
+
+    setAssignments((prev) => {
+      const updated = { ...prev };
+      
+      // Ta bort från ursprunglig plats
+      if (draggedFrom === station) {
+        // Flyttar inom samma station
+        const sourceIdx = updated[draggedFrom].indexOf(draggedEmployee.id);
+        if (sourceIdx !== -1) {
+          updated[draggedFrom] = [...updated[draggedFrom]];
+          updated[draggedFrom][sourceIdx] = "";
+        }
+      } else {
+        // Flyttar från annan station
+        updated[draggedFrom] = updated[draggedFrom].filter((id) => id !== draggedEmployee.id);
+      }
+
+      // Lägg till på ny plats
+      const maxPositions = station === "Pack" ? 12 : 6;
+      if (!updated[station]) {
+        updated[station] = Array(maxPositions).fill("");
+      }
+      updated[station] = [...updated[station]];
+      updated[station][targetIdx] = draggedEmployee.id;
+
+      return updated;
+    });
+
+    setDraggedEmployee(null);
+    setDraggedFrom(null);
   };
 
   const filteredEmployees = employees.filter((emp) => {
@@ -489,6 +525,42 @@ const DailyPlanning = () => {
                     </h3>
                     {station === "FL" ? (
                       <p className="text-sm">{flManual || "Ingen tilldelad"}</p>
+                    ) : station === "Pack" ? (
+                      <ul className="space-y-1">
+                        {Array.from({ length: 12 }, (_, idx) => (
+                          <li
+                            key={idx}
+                            draggable={!!assigned[idx]}
+                            onDragStart={() => assigned[idx] && handleDragStart(assigned[idx], station)}
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => {
+                              e.stopPropagation();
+                              handleDropOnPackPosition(station, idx);
+                            }}
+                            className="text-sm cursor-move p-2 rounded hover:bg-secondary/50 transition-colors"
+                          >
+                            {idx + 1}. {assigned[idx] ? getEmployeeName(assigned[idx]) : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : station === "Auto Pack" || station === "Auto Plock" ? (
+                      <ul className="space-y-1">
+                        {Array.from({ length: 6 }, (_, idx) => (
+                          <li
+                            key={idx}
+                            draggable={!!assigned[idx]}
+                            onDragStart={() => assigned[idx] && handleDragStart(assigned[idx], station)}
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => {
+                              e.stopPropagation();
+                              handleDropOnPackPosition(station, idx);
+                            }}
+                            className="text-sm cursor-move p-2 rounded hover:bg-secondary/50 transition-colors"
+                          >
+                            {idx + 1}. {assigned[idx] ? getEmployeeName(assigned[idx]) : ""}
+                          </li>
+                        ))}
+                      </ul>
                     ) : (
                       <ul className="space-y-1">
                         {assigned.map((empId, idx) => (
