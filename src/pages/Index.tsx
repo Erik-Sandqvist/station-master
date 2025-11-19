@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Calendar, LayoutDashboard } from "lucide-react";
+import { Users, Calendar, LayoutDashboard, History } from "lucide-react";
 import EmployeeManagement from "@/components/EmployeeManagement";
 import DailyPlanning from "@/components/DailyPlanning";
 import Dashboard from "@/components/Dashboard";
+import HistoryView from "@/components/HistoryView";
 
 const Index = () => {
   return (
@@ -19,7 +20,7 @@ const Index = () => {
         </header>
 
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-3 bg-card shadow-sm">
+          <TabsList className="grid w-full max-w-3xl grid-cols-4 bg-card shadow-sm">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <LayoutDashboard className="h-4 w-4" />
               Dashboard
@@ -31,6 +32,10 @@ const Index = () => {
             <TabsTrigger value="planning" className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               Dagsplanering
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Historik
             </TabsTrigger>
           </TabsList>
 
@@ -44,6 +49,10 @@ const Index = () => {
 
           <TabsContent value="planning" className="space-y-6">
             <DailyPlanning />
+          </TabsContent>
+
+          <TabsContent value="history" className="space-y-6">
+            <HistoryView />
           </TabsContent>
         </Tabs>
       </div>

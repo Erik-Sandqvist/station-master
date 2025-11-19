@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -30,6 +31,13 @@ interface StationNeed {
   count: number;
 }
 
+interface Assignment {
+  employeeId: string;
+  employeeName: string;
+  station: string;
+  lane: number | null;
+}
+
 const STATIONS = [
   "Plock",
   "Autoplock",
@@ -42,14 +50,21 @@ const STATIONS = [
   "FL",
 ];
 
+// Define which stations have lanes
+const STATION_LANES: Record<string, number> = {
+  "Pack": 11,
+  "Auto pack": 6,
+  "Autoplock": 6,
+};
+
 const DailyPlanning = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
   const [stationNeeds, setStationNeeds] = useState<Record<string, number>>({});
-  const [assignments, setAssignments] = useState<Record<string, string[]>>({});
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [flManual, setFlManual] = useState("");
   const [loading, setLoading] = useState(false);
-  const [draggedEmployee, setDraggedEmployee] = useState<{ id: string; fromStation: string } | null>(null);
+  const [draggedEmployee, setDraggedEmployee] = useState<Assignment | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [shiftFilter, setShiftFilter] = useState<string>("Alla");
   const [warningDialog, setWarningDialog] = useState<{
@@ -97,18 +112,17 @@ const DailyPlanning = () => {
     const today = new Date().toISOString().split("T")[0];
     const { data } = await supabase
       .from("daily_assignments")
-      .select("employee_id, station, employees(name)")
+      .select("employee_id, station, lane, employees(name)")
       .eq("assigned_date", today);
 
     if (data) {
-      const assignmentsMap: Record<string, string[]> = {};
-      data.forEach((item: any) => {
-        if (!assignmentsMap[item.station]) {
-          assignmentsMap[item.station] = [];
-        }
-        assignmentsMap[item.station].push(item.employees.name);
-      });
-      setAssignments(assignmentsMap);
+      const assignmentsList: Assignment[] = data.map((item: any) => ({
+        employeeId: item.employee_id,
+        employeeName: item.employees.name,
+        station: item.station,
+        lane: item.lane,
+      }));
+      setAssignments(assignmentsList);
     }
   };
 
@@ -177,7 +191,7 @@ const DailyPlanning = () => {
       }))
     );
 
-    const newAssignments: Record<string, string[]> = {};
+    const newAssignments: Assignment[] = [];
     const assignedEmployees = new Set<string>();
     const stationsToFill = STATIONS.filter((s) => s !== "FL");
 
@@ -188,7 +202,6 @@ const DailyPlanning = () => {
 
     for (const station of sortedStations) {
       const needed = stationNeeds[station] || 0;
-      newAssignments[station] = [];
 
       // Sort employees by least time at this station
       const available = employeeHistories
@@ -201,7 +214,14 @@ const DailyPlanning = () => {
 
       for (let i = 0; i < needed && i < available.length; i++) {
         const employee = available[i];
-        newAssignments[station].push(employee.id);
+        const empName = employees.find((e) => e.id === employee.id)?.name || "";
+        
+        newAssignments.push({
+          employeeId: employee.id,
+          employeeName: empName,
+          station,
+          lane: null,
+        });
         assignedEmployees.add(employee.id);
 
         // Save to database
@@ -209,6 +229,7 @@ const DailyPlanning = () => {
           employee_id: employee.id,
           station,
           assigned_date: today,
+          lane: null,
         });
 
         // Save to history
@@ -216,13 +237,19 @@ const DailyPlanning = () => {
           employee_id: employee.id,
           station,
           work_date: today,
+          lane: null,
         });
       }
     }
 
     // Handle FL manual assignment
     if (flManual.trim()) {
-      newAssignments["FL"] = [flManual];
+      newAssignments.push({
+        employeeId: "manual",
+        employeeName: flManual,
+        station: "FL",
+        lane: null,
+      });
     }
 
     setAssignments(newAssignments);
@@ -234,26 +261,22 @@ const DailyPlanning = () => {
     });
   };
 
-  const getEmployeeName = (id: string) => {
-    return employees.find((e) => e.id === id)?.name || id;
-  };
-
-  const handleDragStart = (employeeId: string, fromStation: string) => {
-    setDraggedEmployee({ id: employeeId, fromStation });
+  const handleDragStart = (assignment: Assignment) => {
+    setDraggedEmployee(assignment);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
 
-  const handleDrop = async (toStation: string) => {
-    if (!draggedEmployee || draggedEmployee.fromStation === toStation) {
+  const handleDrop = async (toStation: string, toLane: number | null = null) => {
+    if (!draggedEmployee || (draggedEmployee.station === toStation && draggedEmployee.lane === toLane)) {
       setDraggedEmployee(null);
       return;
     }
 
     // Check if employee has been at this station too often
-    const history = await getEmployeeHistory(draggedEmployee.id);
+    const history = await getEmployeeHistory(draggedEmployee.employeeId);
     const stationCount = history[toStation] || 0;
     const avgCount = Object.values(history).reduce((a, b) => a + b, 0) / Object.keys(history).length || 0;
     
@@ -261,62 +284,64 @@ const DailyPlanning = () => {
       // Show warning dialog
       setWarningDialog({
         show: true,
-        employeeName: getEmployeeName(draggedEmployee.id),
+        employeeName: draggedEmployee.employeeName,
         toStation,
         count: stationCount,
-        onConfirm: () => performMove(toStation),
+        onConfirm: () => performMove(toStation, toLane),
       });
       return;
     }
 
-    await performMove(toStation);
+    await performMove(toStation, toLane);
   };
 
-  const performMove = async (toStation: string) => {
+  const performMove = async (toStation: string, toLane: number | null = null) => {
     if (!draggedEmployee) return;
 
     const today = new Date().toISOString().split("T")[0];
     setLoading(true);
 
-    // Remove from old station
-    const updatedAssignments = { ...assignments };
-    updatedAssignments[draggedEmployee.fromStation] = updatedAssignments[draggedEmployee.fromStation].filter(
-      (id) => id !== draggedEmployee.id
+    // Remove from assignments array
+    const updatedAssignments = assignments.filter(
+      (a) => !(a.employeeId === draggedEmployee.employeeId && a.station === draggedEmployee.station && a.lane === draggedEmployee.lane)
     );
 
-    // Add to new station
-    if (!updatedAssignments[toStation]) {
-      updatedAssignments[toStation] = [];
-    }
-    updatedAssignments[toStation].push(draggedEmployee.id);
+    // Add to new location
+    updatedAssignments.push({
+      ...draggedEmployee,
+      station: toStation,
+      lane: toLane,
+    });
 
     // Update database - delete old assignment
     await supabase
       .from("daily_assignments")
       .delete()
-      .eq("employee_id", draggedEmployee.id)
+      .eq("employee_id", draggedEmployee.employeeId)
       .eq("assigned_date", today)
-      .eq("station", draggedEmployee.fromStation);
+      .eq("station", draggedEmployee.station);
 
     // Insert new assignment
     await supabase.from("daily_assignments").insert({
-      employee_id: draggedEmployee.id,
+      employee_id: draggedEmployee.employeeId,
       station: toStation,
       assigned_date: today,
+      lane: toLane,
     });
 
     // Update work history
     await supabase
       .from("work_history")
       .delete()
-      .eq("employee_id", draggedEmployee.id)
+      .eq("employee_id", draggedEmployee.employeeId)
       .eq("work_date", today)
-      .eq("station", draggedEmployee.fromStation);
+      .eq("station", draggedEmployee.station);
 
     await supabase.from("work_history").insert({
-      employee_id: draggedEmployee.id,
+      employee_id: draggedEmployee.employeeId,
       station: toStation,
       work_date: today,
+      lane: toLane,
     });
 
     setAssignments(updatedAssignments);
@@ -326,7 +351,7 @@ const DailyPlanning = () => {
 
     toast({
       title: "Flyttad!",
-      description: `${getEmployeeName(draggedEmployee.id)} har flyttats till ${toStation}`,
+      description: `${draggedEmployee.employeeName} har flyttats till ${toStation}${toLane ? ` Bana ${toLane}` : ""}`,
     });
   };
 
@@ -335,6 +360,95 @@ const DailyPlanning = () => {
     const matchesShift = shiftFilter === "Alla" || emp.shift === shiftFilter;
     return matchesSearch && matchesShift;
   });
+
+  const getAssignmentsByStation = (station: string) => {
+    return assignments.filter((a) => a.station === station);
+  };
+
+  const getAssignmentsByStationAndLane = (station: string, lane: number | null) => {
+    return assignments.filter((a) => a.station === station && a.lane === lane);
+  };
+
+  const renderStationCard = (station: string) => {
+    const stationAssignments = getAssignmentsByStation(station);
+    if (stationAssignments.length === 0 && station !== "FL") return null;
+
+    const hasLanes = STATION_LANES[station];
+
+    if (station === "FL") {
+      return (
+        <Card key={station} className="p-4 bg-card shadow-card hover:shadow-hover transition-all">
+          <h3 className="font-semibold text-lg mb-2 text-primary">{station}</h3>
+          <p className="text-sm text-muted-foreground">{flManual || "Ingen tilldelad"}</p>
+        </Card>
+      );
+    }
+
+    if (hasLanes) {
+      return (
+        <Card key={station} className="p-4 bg-card shadow-card hover:shadow-hover transition-all">
+          <h3 className="font-semibold text-lg mb-3 text-primary">{station}</h3>
+          <div className="space-y-3">
+            {Array.from({ length: hasLanes }, (_, i) => i + 1).map((lane) => {
+              const laneAssignments = getAssignmentsByStationAndLane(station, lane);
+              return (
+                <div
+                  key={lane}
+                  className="p-3 rounded-md bg-muted/50 border-2 border-dashed border-border hover:border-primary/50 transition-colors"
+                  onDragOver={handleDragOver}
+                  onDrop={() => handleDrop(station, lane)}
+                >
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Bana {lane}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {laneAssignments.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">Dra hit medarbetare</p>
+                    ) : (
+                      laneAssignments.map((assignment, idx) => (
+                        <Badge
+                          key={`${assignment.employeeId}-${assignment.lane}-${idx}`}
+                          variant="default"
+                          className="cursor-move bg-primary hover:bg-primary/90"
+                          draggable
+                          onDragStart={() => handleDragStart(assignment)}
+                        >
+                          {assignment.employeeName}
+                        </Badge>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      );
+    }
+
+    // Station without lanes
+    return (
+      <Card
+        key={station}
+        className="p-4 bg-card shadow-card hover:shadow-hover transition-all"
+        onDragOver={handleDragOver}
+        onDrop={() => handleDrop(station, null)}
+      >
+        <h3 className="font-semibold text-lg mb-3 text-primary">{station}</h3>
+        <div className="flex flex-wrap gap-2">
+          {stationAssignments.map((assignment, idx) => (
+            <Badge
+              key={`${assignment.employeeId}-${idx}`}
+              variant="default"
+              className="cursor-move bg-primary hover:bg-primary/90"
+              draggable
+              onDragStart={() => handleDragStart(assignment)}
+            >
+              {assignment.employeeName}
+            </Badge>
+          ))}
+        </div>
+      </Card>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -466,46 +580,17 @@ const DailyPlanning = () => {
         </CardContent>
       </Card>
 
-      {Object.keys(assignments).length > 0 && (
+      {assignments.length > 0 && (
         <Card className="shadow-lg border-border/50">
           <CardHeader>
             <CardTitle>Dagens tilldelningar</CardTitle>
+            <CardDescription>
+              Dra medarbetare mellan stationer och banor för att ändra tilldelning. Du kan ha flera personer per bana.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid md:grid-cols-2 gap-4">
-              {STATIONS.map((station) => {
-                const assigned = assignments[station] || [];
-                if (assigned.length === 0 && station !== "FL") return null;
-
-                return (
-                  <Card
-                    key={station}
-                    className="p-4 bg-secondary/30 transition-colors"
-                    onDragOver={handleDragOver}
-                    onDrop={() => handleDrop(station)}
-                  >
-                    <h3 className="font-semibold text-lg mb-2 text-primary">
-                      {station}
-                    </h3>
-                    {station === "FL" ? (
-                      <p className="text-sm">{flManual || "Ingen tilldelad"}</p>
-                    ) : (
-                      <ul className="space-y-1">
-                        {assigned.map((empId, idx) => (
-                          <li
-                            key={idx}
-                            draggable
-                            onDragStart={() => handleDragStart(empId, station)}
-                            className="text-sm cursor-move p-2 rounded hover:bg-secondary/50 transition-colors"
-                          >
-                            • {getEmployeeName(empId)}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </Card>
-                );
-              })}
+              {STATIONS.map((station) => renderStationCard(station))}
             </div>
           </CardContent>
         </Card>
