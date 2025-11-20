@@ -5,18 +5,14 @@ import EmployeeManagement from "@/components/EmployeeManagement";
 import DailyPlanning from "@/components/DailyPlanning";
 import Dashboard from "@/components/Dashboard";
 
+import Navbar from "@/components/Navbar";
+
 const Index = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-white to-background">
-      <div className="container mx-auto px-4 py-8">
-        <header className="mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Arbetsplatsplanering
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Hantera medarbetare och planera arbetsstationer effektivt
-          </p>
-        </header>
+    <>
+      <Navbar />
+      <div className="min-h-screen bg-gradient-to-br from-background via-white to-background pt-24">
+        <div className="container mx-auto px-4 py-8">
 
         <Tabs defaultValue="dashboard" className="space-y-6">
           <TabsList className="grid w-full max-w-md grid-cols-3 bg-card shadow-sm">
@@ -47,7 +43,7 @@ const Index = () => {
           </TabsContent>
         </Tabs>
       </div>
-    </div>
+    </div></>
   );
 };
 

@@ -414,7 +414,7 @@ const DailyPlanning = () => {
           disabled={loading}
           className="w-3/5 h-12 bg-gradient-to-r from-primary to-white backdrop-blur-lg border
             shadow-2xl hover:from-primary/70 hover:to-secondary/70 hover:shadow-3xl
-            transition-all duration-300 hover:scale-[1.02] text-xl"
+            transition-all duration-300 hover:scale-[1.02] text-xl z-0"
             >
          Spara behov
         </Button>
@@ -521,6 +521,8 @@ const DailyPlanning = () => {
          </CardContent>
       </Card>
 
+
+      {/* Tilldelnings kortet */}
       {Object.keys(assignments).length > 0 && (
         <Card className="shadow-lg border-border/50">
           <CardHeader className="pb-3">
