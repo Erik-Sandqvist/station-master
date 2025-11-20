@@ -7,10 +7,18 @@
       }
 
       .cls-2 {
+        fill: #231f20;
+        font-family: MicrosoftTaiLe-Bold, 'Microsoft Tai Le';
+        font-size: 72px;
+        font-weight: 700;
+      }
+
+      .cls-3 {
         fill: #145aa9;
       }
     </style>
   </defs>
-  <rect class="cls-2" width="441.67" height="210.42"/>
+  <rect class="cls-3" width="441.67" height="210.42"/>
   <ellipse class="cls-1" cx="220.83" cy="105.21" rx="211.46" ry="98.26"/>
+  <text class="cls-2" transform="translate(70.66 131.86)"><tspan x="0" y="0">Prototyp</tspan></text>
 </svg>
