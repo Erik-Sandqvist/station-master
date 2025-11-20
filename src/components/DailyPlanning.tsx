@@ -475,7 +475,7 @@ const DailyPlanning = () => {
     {filteredEmployees.map((employee) => (
       <div
         key={employee.id}
-        className="flex items-center space-x-2 p-3 rounded-lg bg-secondary/50 hover:bg-slate-200 hover:backdrop-blur-lg"
+        className="flex items-center space-x-2 p-3 rounded-lg bg-secondary/50 hover:bg-backdrop-blur-lg"
       >
         <Checkbox
           id={employee.id}
@@ -499,7 +499,26 @@ const DailyPlanning = () => {
       </div>
     ))}
   </div>
-</CardContent>
+  <div className="space-y-2 pt-4 border-t">
+            <Label htmlFor="fl-manual">FL Station (Manuell tilldelning)</Label>
+            <Input
+              id="fl-manual"
+              placeholder="Skriv namn för FL station..."
+              value={flManual}
+              onChange={(e) => setFlManual(e.target.value)}
+              className="bg-sidebar-input"
+            />
+          </div>
+
+          <Button
+            onClick={distributeEmployees}
+            disabled={loading || selectedEmployees.length === 0}
+            className="w-full gap-2 bg-gradient-to-r from-accent to-primary"
+          >
+            <Shuffle className="h-4 w-4" />
+            Fördela medarbetare till stationer
+          </Button>
+         </CardContent>
       </Card>
 
       {Object.keys(assignments).length > 0 && (
