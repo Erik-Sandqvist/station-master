@@ -21,6 +21,7 @@ const EmployeeManagement = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [newEmployeeName, setNewEmployeeName] = useState("");
   const [newEmployeeShift, setNewEmployeeShift] = useState("Skift 1");
+  const [filterShift, setFilterShift] = useState("Alla");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -169,17 +170,35 @@ const EmployeeManagement = () => {
           </div>
         </div>
 
-        <div className="space-y-2">
-          <h3 className="text-sm font-medium text-foreground">
-            Alla medarbetare ({employees.length})
-          </h3>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-foreground">
+              Medarbetare ({filterShift === "Alla" ? employees.length : employees.filter(e => e.shift === filterShift).length})
+            </h3>
+            <div className="w-48">
+              <Select value={filterShift} onValueChange={setFilterShift}>
+                <SelectTrigger className="bg-sidebar-input">
+                  <SelectValue placeholder="Välj skift" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Alla">Alla skift</SelectItem>
+                  <SelectItem value="Skift 1">Skift 1</SelectItem>
+                  <SelectItem value="Skift 2">Skift 2</SelectItem>
+                  <SelectItem value="Natt">Natt</SelectItem>
+                  <SelectItem value="Bemanningsföretag">Bemanningsföretag</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <div className="grid gap-2">
-            {employees.length === 0 ? (
+            {(filterShift === "Alla" ? employees : employees.filter(e => e.shift === filterShift)).length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
-                Inga medarbetare än. Lägg till din första medarbetare ovan.
+                {filterShift === "Alla" 
+                  ? "Inga medarbetare än. Lägg till din första medarbetare ovan."
+                  : `Inga medarbetare i ${filterShift}.`}
               </p>
             ) : (
-              employees.map((employee) => (
+              (filterShift === "Alla" ? employees : employees.filter(e => e.shift === filterShift)).map((employee) => (
                 <Card
                   key={employee.id}
                   className="p-4 flex items-center justify-between hover:shadow-md transition-shadow"
