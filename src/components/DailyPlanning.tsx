@@ -538,86 +538,86 @@ const DailyPlanning = () => {
 
                 return (
                   <Card
-                    key={station}
-                    className="p-3 bg-gradient-to-br from-secondary/40 to-secondary/20 hover:from-secondary/50 hover:to-secondary/30 transition-all duration-200 border-border/50 shadow-sm hover:shadow-md"
-                    onDragOver={handleDragOver}
-                    onDrop={() => handleDrop(station)}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-semibold text-sm text-primary">
-                        {station}
-                      </h3>
-                      {station !== "FL" && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          filledCount >= needed 
-                            ? 'bg-primary/20 text-primary' 
-                            : 'bg-accent/20 text-accent'
-                        }`}>
-                          {filledCount}/{needed}
-                        </span>
-                      )}
-                    </div>
-                    {station === "FL" ? (
-                      <p className="text-xs text-muted-foreground">{flManual || "Ingen tilldelad"}</p>
-                    ) : station === "Pack" ? (
-                      <div className="grid grid-cols-2 gap-1 max-h-32 overflow-y-auto">
-                        {Array.from({ length: 12 }, (_, idx) => (
-                          <div
-                            key={idx}
-                            draggable={!!assigned[idx]}
-                            onDragStart={() => assigned[idx] && handleDragStart(assigned[idx], station)}
-                            onDragOver={handleDragOver}
-                            onDrop={(e) => {
-                              e.stopPropagation();
-                              handleDropOnPackPosition(station, idx);
-                            }}
-                            className={`text-xs p-1.5 rounded ${
-                              assigned[idx] 
-                                ? 'bg-primary/10 cursor-move hover:bg-primary/20' 
-                                : 'bg-muted/30 text-muted-foreground'
-                            } transition-colors`}
-                          >
-                            {idx + 1}. {assigned[idx] ? getEmployeeName(assigned[idx]).split(' ')[0] : '–'}
-                          </div>
-                        ))}
-                      </div>
-                    ) : station === "Auto Pack" || station === "Auto Plock" ? (
-                      <div className="space-y-1 max-h-32 overflow-y-auto">
-                        {Array.from({ length: 6 }, (_, idx) => (
-                          <div
-                            key={idx}
-                            draggable={!!assigned[idx]}
-                            onDragStart={() => assigned[idx] && handleDragStart(assigned[idx], station)}
-                            onDragOver={handleDragOver}
-                            onDrop={(e) => {
-                              e.stopPropagation();
-                              handleDropOnPackPosition(station, idx);
-                            }}
-                            className={`text-xs p-1.5 rounded ${
-                              assigned[idx] 
-                                ? 'bg-primary/10 cursor-move hover:bg-primary/20' 
-                                : 'bg-muted/30 text-muted-foreground'
-                            } transition-colors`}
-                          >
-                            {idx + 1}. {assigned[idx] ? getEmployeeName(assigned[idx]).split(' ')[0] : '–'}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="space-y-1 max-h-32 overflow-y-auto">
-                        {assigned.map((empId, idx) => (
-                          <div
-                            key={idx}
-                            draggable
-                            onDragStart={() => handleDragStart(empId, station)}
-                            className="text-xs cursor-move p-1.5 rounded bg-primary/10 hover:bg-primary/20 transition-colors"
-                          >
-                            • {getEmployeeName(empId)}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </Card>
+  key={station}
+  className="p-4 bg-white/40 backdrop-blur-md border border-white/50 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-15"
+  onDragOver={handleDragOver}
+  onDrop={() => handleDrop(station)}
+>
+  <div className="flex items-center justify-between mb-3">
+    <h3 className="font-semibold text-base text-primary">
+      {station}
+    </h3>
+    {station !== "FL" && (
+      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+        filledCount >= needed 
+          ? 'bg-primary/20 text-primary' 
+          : 'bg-accent/20 text-accent'
+      }`}>
+        {filledCount}/{needed}
+      </span>
+    )}
+  </div>
+  {station === "FL" ? (
+    <p className="text-sm text-muted-foreground">{flManual || "Ingen tilldelad"}</p>
+  ) : station === "Pack" ? (
+    <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+      {Array.from({ length: 12 }, (_, idx) => (
+        <div
+          key={idx}
+          draggable={!!assigned[idx]}
+          onDragStart={() => assigned[idx] && handleDragStart(assigned[idx], station)}
+          onDragOver={handleDragOver}
+          onDrop={(e) => {
+            e.stopPropagation();
+            handleDropOnPackPosition(station, idx);
+          }}
+          className={`text-sm p-2 rounded-lg ${
+            assigned[idx] 
+              ? 'bg-primary/15 cursor-move hover:bg-primary/25 backdrop-blur-sm' 
+              : 'bg-muted/40 text-muted-foreground backdrop-blur-sm'
+          } transition-all duration-200`}
+        >
+          {idx + 1}. {assigned[idx] ? getEmployeeName(assigned[idx]).split(' ')[0] : '–'}
+        </div>
+      ))}
+    </div>
+  ) : station === "Auto Pack" || station === "Auto Plock" ? (
+    <div className="space-y-2 max-h-40 overflow-y-auto">
+      {Array.from({ length: 6 }, (_, idx) => (
+        <div
+          key={idx}
+          draggable={!!assigned[idx]}
+          onDragStart={() => assigned[idx] && handleDragStart(assigned[idx], station)}
+          onDragOver={handleDragOver}
+          onDrop={(e) => {
+            e.stopPropagation();
+            handleDropOnPackPosition(station, idx);
+          }}
+          className={`text-sm p-2 rounded-lg ${
+            assigned[idx] 
+              ? 'bg-primary/15 cursor-move hover:bg-primary/25 backdrop-blur-sm' 
+              : 'bg-muted/40 text-muted-foreground backdrop-blur-sm'
+          } transition-all duration-200`}
+        >
+          {idx + 1}. {assigned[idx] ? getEmployeeName(assigned[idx]).split(' ')[0] : '–'}
+        </div>
+      ))}
+    </div>
+  ) : (
+    <div className="space-y-2 max-h-40 overflow-y-auto">
+      {assigned.map((empId, idx) => (
+        <div
+          key={idx}
+          draggable
+          onDragStart={() => handleDragStart(empId, station)}
+          className="text-sm cursor-move p-2 rounded-lg bg-primary/15 hover:bg-primary/25 backdrop-blur-sm transition-all duration-200"
+        >
+          • {getEmployeeName(empId)}
+        </div>
+      ))}
+    </div>
+  )}
+</Card>
                 );
               })}
             </div>
