@@ -49,6 +49,35 @@ export type Database = {
           },
         ]
       }
+      employee_stations: {
+        Row: {
+          created_at: string
+          employee_id: string
+          id: string
+          station: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          id?: string
+          station: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          id?: string
+          station?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_stations_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           created_at: string | null

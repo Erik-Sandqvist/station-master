@@ -5,9 +5,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, UserCheck, UserX } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, Trash2, UserCheck, UserX, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+
+const STATIONS = [
+  "Plock",
+  "Auto Plock",
+  "Pack",
+  "Auto Pack",
+  "KM",
+  "Decating",
+  "In/Ut",
+  "Rep",
+  "FL",
+];
 
 interface Employee {
   id: string;
@@ -23,6 +37,8 @@ const EmployeeManagement = () => {
   const [newEmployeeShift, setNewEmployeeShift] = useState("Skift 1");
   const [filterShift, setFilterShift] = useState("Alla");
   const [loading, setLoading] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [employeeStations, setEmployeeStations] = useState<string[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -97,6 +113,58 @@ const EmployeeManagement = () => {
         description: "Status har ändrats",
       });
       fetchEmployees();
+    }
+  };
+
+  const openEmployeeDetails = async (employee: Employee) => {
+    setSelectedEmployee(employee);
+    
+    // Hämta medarbetarens stationer
+    const { data } = await supabase
+      .from("employee_stations")
+      .select("station")
+      .eq("employee_id", employee.id);
+    
+    setEmployeeStations(data?.map(d => d.station) || []);
+  };
+
+  const toggleStation = async (station: string) => {
+    if (!selectedEmployee) return;
+
+    const hasStation = employeeStations.includes(station);
+    
+    if (hasStation) {
+      // Ta bort station
+      const { error } = await supabase
+        .from("employee_stations")
+        .delete()
+        .eq("employee_id", selectedEmployee.id)
+        .eq("station", station);
+
+      if (error) {
+        toast({
+          title: "Fel",
+          description: "Kunde inte ta bort station",
+          variant: "destructive",
+        });
+      } else {
+        setEmployeeStations(prev => prev.filter(s => s !== station));
+      }
+    } else {
+      // Lägg till station
+      const { error } = await supabase
+        .from("employee_stations")
+        .insert([{ employee_id: selectedEmployee.id, station }]);
+
+      if (error) {
+        toast({
+          title: "Fel",
+          description: "Kunde inte lägga till station",
+          variant: "destructive",
+        });
+      } else {
+        setEmployeeStations(prev => [...prev, station]);
+      }
     }
   };
 
@@ -204,7 +272,12 @@ const EmployeeManagement = () => {
                   className="p-4 flex items-center justify-between hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="font-medium">{employee.name}</span>
+                    <button 
+                      onClick={() => openEmployeeDetails(employee)}
+                      className="font-medium hover:text-primary transition-colors cursor-pointer text-left"
+                    >
+                      {employee.name}
+                    </button>
                     <Badge
                       variant={employee.is_active ? "default" : "secondary"}
                       className={
@@ -252,6 +325,57 @@ const EmployeeManagement = () => {
           </div>
         </div>
       </CardContent>
+
+      {/* Dialog för medarbetardetaljer */}
+      <Dialog open={!!selectedEmployee} onOpenChange={() => setSelectedEmployee(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              {selectedEmployee?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Välj vilka stationer {selectedEmployee?.name} kan arbeta på
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Skift</Label>
+              <Badge variant="outline" className="text-sm">
+                {selectedEmployee?.shift}
+              </Badge>
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Stationer</Label>
+              <div className="grid gap-3">
+                {STATIONS.map((station) => (
+                  <div key={station} className="flex items-center space-x-3">
+                    <Checkbox
+                      id={`station-${station}`}
+                      checked={employeeStations.includes(station)}
+                      onCheckedChange={() => toggleStation(station)}
+                    />
+                    <label
+                      htmlFor={`station-${station}`}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      {station}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={() => setSelectedEmployee(null)}>
+              Stäng
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
