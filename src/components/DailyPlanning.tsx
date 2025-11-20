@@ -452,6 +452,7 @@ const DailyPlanning = () => {
         <SelectItem value="Skift 1">Skift 1</SelectItem>
         <SelectItem value="Skift 2">Skift 2</SelectItem>
         <SelectItem value="Natt">Natt</SelectItem>
+        <SelectItem value="Bemanningsföretag">Bemaningsföretag</SelectItem>
       </SelectContent>
     </Select>
     <Button
