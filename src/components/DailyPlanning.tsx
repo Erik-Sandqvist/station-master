@@ -523,31 +523,46 @@ const DailyPlanning = () => {
 
       {Object.keys(assignments).length > 0 && (
         <Card className="shadow-lg border-border/50">
-          <CardHeader>
-            <CardTitle>Dagens tilldelningar</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Dagens tilldelningar</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {STATIONS.map((station) => {
                 const assigned = assignments[station] || [];
+                const needed = stationNeeds[station] || 0;
+                const filledCount = station === "Pack" || station === "Auto Pack" || station === "Auto Plock" 
+                  ? assigned.filter(a => a).length 
+                  : assigned.length;
                 if (assigned.length === 0 && station !== "FL") return null;
 
                 return (
                   <Card
                     key={station}
-                    className="p-4 bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                    className="p-3 bg-gradient-to-br from-secondary/40 to-secondary/20 hover:from-secondary/50 hover:to-secondary/30 transition-all duration-200 border-border/50 shadow-sm hover:shadow-md"
                     onDragOver={handleDragOver}
                     onDrop={() => handleDrop(station)}
                   >
-                    <h3 className="font-semibold text-lg mb-2 text-primary">
-                      {station}
-                    </h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold text-sm text-primary">
+                        {station}
+                      </h3>
+                      {station !== "FL" && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          filledCount >= needed 
+                            ? 'bg-primary/20 text-primary' 
+                            : 'bg-accent/20 text-accent'
+                        }`}>
+                          {filledCount}/{needed}
+                        </span>
+                      )}
+                    </div>
                     {station === "FL" ? (
-                      <p className="text-sm">{flManual || "Ingen tilldelad"}</p>
+                      <p className="text-xs text-muted-foreground">{flManual || "Ingen tilldelad"}</p>
                     ) : station === "Pack" ? (
-                      <ul className="space-y-1">
+                      <div className="grid grid-cols-2 gap-1 max-h-32 overflow-y-auto">
                         {Array.from({ length: 12 }, (_, idx) => (
-                          <li
+                          <div
                             key={idx}
                             draggable={!!assigned[idx]}
                             onDragStart={() => assigned[idx] && handleDragStart(assigned[idx], station)}
@@ -556,16 +571,20 @@ const DailyPlanning = () => {
                               e.stopPropagation();
                               handleDropOnPackPosition(station, idx);
                             }}
-                            className="text-sm cursor-move p-2 rounded hover:bg-secondary/50 transition-colors"
+                            className={`text-xs p-1.5 rounded ${
+                              assigned[idx] 
+                                ? 'bg-primary/10 cursor-move hover:bg-primary/20' 
+                                : 'bg-muted/30 text-muted-foreground'
+                            } transition-colors`}
                           >
-                            {idx + 1}. {assigned[idx] ? getEmployeeName(assigned[idx]) : ""}
-                          </li>
+                            {idx + 1}. {assigned[idx] ? getEmployeeName(assigned[idx]).split(' ')[0] : '–'}
+                          </div>
                         ))}
-                      </ul>
+                      </div>
                     ) : station === "Auto Pack" || station === "Auto Plock" ? (
-                      <ul className="space-y-1">
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
                         {Array.from({ length: 6 }, (_, idx) => (
-                          <li
+                          <div
                             key={idx}
                             draggable={!!assigned[idx]}
                             onDragStart={() => assigned[idx] && handleDragStart(assigned[idx], station)}
@@ -574,25 +593,29 @@ const DailyPlanning = () => {
                               e.stopPropagation();
                               handleDropOnPackPosition(station, idx);
                             }}
-                            className="text-sm cursor-move p-2 rounded hover:bg-secondary/50 transition-colors"
+                            className={`text-xs p-1.5 rounded ${
+                              assigned[idx] 
+                                ? 'bg-primary/10 cursor-move hover:bg-primary/20' 
+                                : 'bg-muted/30 text-muted-foreground'
+                            } transition-colors`}
                           >
-                            {idx + 1}. {assigned[idx] ? getEmployeeName(assigned[idx]) : ""}
-                          </li>
+                            {idx + 1}. {assigned[idx] ? getEmployeeName(assigned[idx]).split(' ')[0] : '–'}
+                          </div>
                         ))}
-                      </ul>
+                      </div>
                     ) : (
-                      <ul className="space-y-1">
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
                         {assigned.map((empId, idx) => (
-                          <li
+                          <div
                             key={idx}
                             draggable
                             onDragStart={() => handleDragStart(empId, station)}
-                            className="text-sm cursor-move p-2 rounded hover:bg-secondary/50 transition-colors"
+                            className="text-xs cursor-move p-1.5 rounded bg-primary/10 hover:bg-primary/20 transition-colors"
                           >
                             • {getEmployeeName(empId)}
-                          </li>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
                     )}
                   </Card>
                 );
