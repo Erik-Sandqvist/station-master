@@ -20,6 +20,7 @@ export type Database = {
           created_at: string | null
           employee_id: string
           id: string
+          lane: number | null
           station: string
         }
         Insert: {
@@ -27,6 +28,7 @@ export type Database = {
           created_at?: string | null
           employee_id: string
           id?: string
+          lane?: number | null
           station: string
         }
         Update: {
@@ -34,6 +36,7 @@ export type Database = {
           created_at?: string | null
           employee_id?: string
           id?: string
+          lane?: number | null
           station?: string
         }
         Relationships: [
@@ -99,6 +102,7 @@ export type Database = {
           created_at: string | null
           employee_id: string
           id: string
+          lane: number | null
           station: string
           work_date: string
         }
@@ -106,6 +110,7 @@ export type Database = {
           created_at?: string | null
           employee_id: string
           id?: string
+          lane?: number | null
           station: string
           work_date: string
         }
@@ -113,6 +118,7 @@ export type Database = {
           created_at?: string | null
           employee_id?: string
           id?: string
+          lane?: number | null
           station?: string
           work_date?: string
         }

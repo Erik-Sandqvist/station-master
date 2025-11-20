@@ -13,6 +13,9 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ['Noto Sans', 'system-ui', '-apple-system', 'sans-serif'],
+      },
       colors: {
         border: "var(--border)",
         input: "var(--input)",
