@@ -11,7 +11,7 @@ const Index = () => {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-gradient-to-br from-background via-white to-background pt-24">
+      <div className="min-h-screen bg-gradient-to-br from-background via-background/50 to-background pt-24">
         <div className="container mx-auto px-4 py-8">
 
         <Tabs defaultValue="dashboard" className="space-y-6">
