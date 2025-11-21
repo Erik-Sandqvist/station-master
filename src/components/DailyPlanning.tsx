@@ -294,9 +294,13 @@ const DailyPlanning = () => {
 
     // Remove from old station
     const updatedAssignments = { ...assignments };
-    updatedAssignments[draggedEmployee.fromStation] = updatedAssignments[draggedEmployee.fromStation].filter(
-      (id) => id !== draggedEmployee.id
-    );
+    
+    // Only try to remove if not from unassigned list
+    if (draggedEmployee.fromStation !== "unassigned" && updatedAssignments[draggedEmployee.fromStation]) {
+      updatedAssignments[draggedEmployee.fromStation] = updatedAssignments[draggedEmployee.fromStation].filter(
+        (id) => id !== draggedEmployee.id
+      );
+    }
 
     // Add to new station
     if (!updatedAssignments[toStation]) {
@@ -304,13 +308,23 @@ const DailyPlanning = () => {
     }
     updatedAssignments[toStation].push(draggedEmployee.id);
 
-    // Update database - delete old assignment
-    await supabase
-      .from("daily_assignments")
-      .delete()
-      .eq("employee_id", draggedEmployee.id)
-      .eq("assigned_date", today)
-      .eq("station", draggedEmployee.fromStation);
+    // Update database - delete old assignment if exists
+    if (draggedEmployee.fromStation !== "unassigned") {
+      await supabase
+        .from("daily_assignments")
+        .delete()
+        .eq("employee_id", draggedEmployee.id)
+        .eq("assigned_date", today)
+        .eq("station", draggedEmployee.fromStation);
+
+      // Update work history
+      await supabase
+        .from("work_history")
+        .delete()
+        .eq("employee_id", draggedEmployee.id)
+        .eq("work_date", today)
+        .eq("station", draggedEmployee.fromStation);
+    }
 
     // Insert new assignment
     await supabase.from("daily_assignments").insert({
@@ -318,14 +332,6 @@ const DailyPlanning = () => {
       station: toStation,
       assigned_date: today,
     });
-
-    // Update work history
-    await supabase
-      .from("work_history")
-      .delete()
-      .eq("employee_id", draggedEmployee.id)
-      .eq("work_date", today)
-      .eq("station", draggedEmployee.fromStation);
 
     await supabase.from("work_history").insert({
       employee_id: draggedEmployee.id,
@@ -543,6 +549,44 @@ const DailyPlanning = () => {
     </CardHeader>
     <CardContent>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        {/* Unassigned employees list */}
+        {(() => {
+          const assignedEmployeeIds = new Set(
+            Object.values(assignments).flat().filter(id => id)
+          );
+          const unassignedEmployees = selectedEmployees.filter(
+            empId => !assignedEmployeeIds.has(empId)
+          );
+
+          if (unassignedEmployees.length > 0) {
+            return (
+              <Card className="p-4 bg-gradient-to-br from-accent/20 to-primary/20 backdrop-blur-md border border-accent/50 shadow-xl col-span-full">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-foreground">
+                    Ofördelade medarbetare
+                  </h3>
+                  <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-accent/60 text-accent-foreground">
+                    {unassignedEmployees.length}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {unassignedEmployees.map((empId) => (
+                    <div
+                      key={empId}
+                      draggable
+                      onDragStart={() => handleDragStart(empId, "unassigned")}
+                      className="text-sm text-foreground cursor-move px-3 py-2 rounded-lg bg-background/80 hover:bg-primary/25 backdrop-blur-sm transition-all duration-200 border border-border/30"
+                    >
+                      {getEmployeeShortName(empId)}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            );
+          }
+          return null;
+        })()}
+
         {STATIONS.map((station) => {
           const assigned = assignments[station] || [];
           const needed = stationNeeds[station] || 0;
