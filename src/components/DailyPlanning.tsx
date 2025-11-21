@@ -235,8 +235,20 @@ const DailyPlanning = () => {
     });
   };
 
-  const getEmployeeName = (id: string) => {
-    return employees.find((e) => e.id === id)?.name || id;
+  // const getEmployeeName = (id: string) => {
+  //   return employees.find((e) => e.id === id)?.name || id;
+  // };
+
+  const getEmployeeShortName = (empId: string) => {
+    const employee = employees.find(e => e.id === empId);
+    if (!employee) return empId;
+    
+    const nameParts = employee.name.split(' ');
+    if (nameParts.length === 1) return nameParts[0];
+    
+    const firstName = nameParts[0];
+    const lastInitial = nameParts[nameParts.length - 1][0];
+    return `${firstName} ${lastInitial}.`;
   };
 
   const handleDragStart = (employeeId: string, fromStation: string) => {
@@ -263,7 +275,7 @@ const DailyPlanning = () => {
       // Show warning dialog
       setWarningDialog({
         show: true,
-        employeeName: getEmployeeName(draggedEmployee.id),
+        employeeName: getEmployeeShortName(draggedEmployee.id),
         toStation,
         count: stationCount,
         onConfirm: () => performMove(toStation),
@@ -328,7 +340,7 @@ const DailyPlanning = () => {
 
     toast({
       title: "Flyttad!",
-      description: `${getEmployeeName(draggedEmployee.id)} har flyttats till ${toStation}`,
+      description: `${getEmployeeShortName(draggedEmployee.id)} har flyttats till ${toStation}`,
     });
   };
 
@@ -523,110 +535,108 @@ const DailyPlanning = () => {
       </Card>
 
 
-      {/* Tilldelnings kortet */}
-      {Object.keys(assignments).length > 0 && (
-        <Card className="shadow-lg border-border/50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Dagens tilldelningar</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {STATIONS.map((station) => {
-                const assigned = assignments[station] || [];
-                const needed = stationNeeds[station] || 0;
-                const filledCount = station === "Pack" || station === "Auto Pack" || station === "Auto Plock" 
-                  ? assigned.filter(a => a).length 
-                  : assigned.length;
-                if (assigned.length === 0 && station !== "FL") return null;
+     {/* Tilldelnings kortet */}
+{Object.keys(assignments).length > 0 && (
+  <Card className="shadow-lg border-border/50">
+    <CardHeader className="pb-3">
+      <CardTitle className="text-lg">Dagens tilldelningar</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        {STATIONS.map((station) => {
+          const assigned = assignments[station] || [];
+          const needed = stationNeeds[station] || 0;
+          const filledCount = station === "Pack" || station === "Auto Pack" || station === "Auto Plock" 
+            ? assigned.filter(a => a).length 
+            : assigned.length;
+          if (assigned.length === 0 && station !== "FL") return null;
 
-                return (
-                  <Card
-  key={station}
-  className="p-4 bg-white/40 backdrop-blur-md border border-white/50 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-15"
-  onDragOver={handleDragOver}
-  onDrop={() => handleDrop(station)}
->
-  <div className="flex items-center justify-between mb-3">
-    <h3 className="font-semibold text-base text-primary">
-      {station}
-    </h3>
-    {station !== "FL" && (
-      <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-        filledCount >= needed 
-          ? 'bg-primary/20 text-primary' 
-          : 'bg-accent/20 text-accent'
-      }`}>
-        {filledCount}/{needed}
-      </span>
-    )}
+          return (
+            <Card
+              key={station}
+              className="p-4 bg-white backdrop-blur-md border border-white/50 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
+              onDragOver={handleDragOver}
+              onDrop={() => handleDrop(station)}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-black">
+                  {station}
+                </h3>
+                {station !== "FL" && (
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                    filledCount >= needed 
+                      ? 'bg-black/60 text-white' 
+                      : 'bg-accent text-accent'
+                  }`}>
+                    {filledCount}/{needed}
+                  </span>
+                )}
+              </div>
+              {station === "Pack" ? (
+  <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+    {Array.from({ length: 12 }, (_, idx) => (
+      <div
+        key={idx}
+        draggable={!!assigned[idx]}
+        onDragStart={() => assigned[idx] && handleDragStart(assigned[idx], station)}
+        onDragOver={handleDragOver}
+        onDrop={(e) => {
+          e.stopPropagation();
+          handleDropOnPackPosition(station, idx);
+        }}
+        className={`text-sm text-black p-2 rounded-lg ${
+          assigned[idx] 
+            ? 'bg-white cursor-move hover:bg-primary/25 backdrop-blur-sm' 
+            : 'backdrop-blur-sm'
+        } transition-all duration-200`}
+      >
+        {idx + 1}. {assigned[idx] ? getEmployeeShortName(assigned[idx]) : '–'}
+      </div>
+    ))}
   </div>
-  {station === "FL" ? (
-    <p className="text-sm text-muted-foreground">{flManual || "Ingen tilldelad"}</p>
-  ) : station === "Pack" ? (
-    <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
-      {Array.from({ length: 12 }, (_, idx) => (
-        <div
-          key={idx}
-          draggable={!!assigned[idx]}
-          onDragStart={() => assigned[idx] && handleDragStart(assigned[idx], station)}
-          onDragOver={handleDragOver}
-          onDrop={(e) => {
-            e.stopPropagation();
-            handleDropOnPackPosition(station, idx);
-          }}
-          className={`text-sm p-2 rounded-lg ${
-            assigned[idx] 
-              ? 'bg-primary/15 cursor-move hover:bg-primary/25 backdrop-blur-sm' 
-              : 'bg-muted/40 text-muted-foreground backdrop-blur-sm'
-          } transition-all duration-200`}
-        >
-          {idx + 1}. {assigned[idx] ? getEmployeeName(assigned[idx]).split(' ')[0] : '–'}
-        </div>
-      ))}
-    </div>
-  ) : station === "Auto Pack" || station === "Auto Plock" ? (
-    <div className="space-y-2 max-h-40 overflow-y-auto">
-      {Array.from({ length: 6 }, (_, idx) => (
-        <div
-          key={idx}
-          draggable={!!assigned[idx]}
-          onDragStart={() => assigned[idx] && handleDragStart(assigned[idx], station)}
-          onDragOver={handleDragOver}
-          onDrop={(e) => {
-            e.stopPropagation();
-            handleDropOnPackPosition(station, idx);
-          }}
-          className={`text-sm p-2 rounded-lg ${
-            assigned[idx] 
-              ? 'bg-primary/15 cursor-move hover:bg-primary/25 backdrop-blur-sm' 
-              : 'bg-muted/40 text-muted-foreground backdrop-blur-sm'
-          } transition-all duration-200`}
-        >
-          {idx + 1}. {assigned[idx] ? getEmployeeName(assigned[idx]).split(' ')[0] : '–'}
-        </div>
-      ))}
-    </div>
-  ) : (
-    <div className="space-y-2 max-h-40 overflow-y-auto">
-      {assigned.map((empId, idx) => (
-        <div
-          key={idx}
-          draggable
-          onDragStart={() => handleDragStart(empId, station)}
-          className="text-sm cursor-move p-2 rounded-lg bg-primary/15 hover:bg-primary/25 backdrop-blur-sm transition-all duration-200"
-        >
-          • {getEmployeeName(empId)}
-        </div>
-      ))}
-    </div>
-  )}
-</Card>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+) : station === "Auto Pack" || station === "Auto Plock" ? (
+  <div className="space-y-2 max-h-40 overflow-y-auto">
+    {Array.from({ length: 6 }, (_, idx) => (
+      <div
+        key={idx}
+        draggable={!!assigned[idx]}
+        onDragStart={() => assigned[idx] && handleDragStart(assigned[idx], station)}
+        onDragOver={handleDragOver}
+        onDrop={(e) => {
+          e.stopPropagation();
+          handleDropOnPackPosition(station, idx);
+        }}
+        className={`text-sm text-black p-2 rounded-lg ${
+          assigned[idx] 
+            ? 'bg-white cursor-move hover:bg-primary/25 backdrop-blur-sm' 
+            : 'backdrop-blur-sm'
+        } transition-all duration-200`}
+      >
+        {idx + 1}. {assigned[idx] ? getEmployeeShortName(assigned[idx]) : '–'}
+      </div>
+    ))}
+  </div>
+) : (
+  <div className="space-y-2 max-h-40 overflow-y-auto">
+    {assigned.map((empId, idx) => (
+      <div
+        key={idx}
+        draggable
+        onDragStart={() => handleDragStart(empId, station)}
+        className="text-sm text-black cursor-move p-2 rounded-lg bg-white hover:bg-primary/25 backdrop-blur-sm transition-all duration-200"
+      >
+        • {getEmployeeShortName(empId)}
+      </div>
+    ))}
+  </div>
+)}
+            </Card>
+          );
+        })}
+      </div>
+    </CardContent>
+  </Card>
+)}
 
       <AlertDialog open={warningDialog?.show} onOpenChange={(open) => !open && setWarningDialog(null)}>
         <AlertDialogContent>
