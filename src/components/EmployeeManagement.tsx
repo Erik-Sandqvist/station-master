@@ -39,6 +39,7 @@ const EmployeeManagement = () => {
   const [loading, setLoading] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [employeeStations, setEmployeeStations] = useState<string[]>([]);
+  const [stationStats, setStationStats] = useState<Record<string, number>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -126,6 +127,23 @@ const EmployeeManagement = () => {
       .eq("employee_id", employee.id);
     
     setEmployeeStations(data?.map(d => d.station) || []);
+
+    // Hämta statistik för senaste 3 månaderna
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    
+    const { data: historyData } = await supabase
+      .from("work_history")
+      .select("station")
+      .eq("employee_id", employee.id)
+      .gte("work_date", threeMonthsAgo.toISOString().split('T')[0]);
+    
+    // Räkna antal gånger per station
+    const stats: Record<string, number> = {};
+    historyData?.forEach(record => {
+      stats[record.station] = (stats[record.station] || 0) + 1;
+    });
+    setStationStats(stats);
   };
 
   const toggleStation = async (station: string) => {
@@ -351,22 +369,37 @@ const EmployeeManagement = () => {
               <Label className="text-sm font-medium">Stationer</Label>
               <div className="grid gap-3">
                 {STATIONS.map((station) => (
-                  <div key={station} className="flex items-center space-x-3">
-                    <Checkbox
-                      id={`station-${station}`}
-                      checked={employeeStations.includes(station)}
-                      onCheckedChange={() => toggleStation(station)}
-                    />
-                    <label
-                      htmlFor={`station-${station}`}
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      {station}
-                    </label>
+                  <div key={station} className="flex items-center justify-between space-x-3">
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id={`station-${station}`}
+                        checked={employeeStations.includes(station)}
+                        onCheckedChange={() => toggleStation(station)}
+                      />
+                      <label
+                        htmlFor={`station-${station}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        {station}
+                      </label>
+                    </div>
+                    {stationStats[station] && (
+                      <Badge variant="secondary" className="text-xs">
+                        {stationStats[station]} gånger
+                      </Badge>
+                    )}
                   </div>
                 ))}
               </div>
             </div>
+
+            {Object.keys(stationStats).length > 0 && (
+              <div className="pt-4 border-t">
+                <p className="text-xs text-muted-foreground">
+                  Statistik visar antal arbetspass de senaste 3 månaderna
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end">
