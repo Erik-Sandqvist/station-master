@@ -266,13 +266,18 @@ const DailyPlanning = () => {
       return;
     }
 
-    // Check if employee has been at this station too often
+    // Check if employee has been at this station the most
     const history = await getEmployeeHistory(draggedEmployee.id);
     const stationCount = history[toStation] || 0;
-    const avgCount = Object.values(history).reduce((a, b) => a + b, 0) / Object.keys(history).length || 0;
     
-    if (stationCount > avgCount * 1.5 && stationCount > 5) {
-      // Show warning dialog
+    // Find the station with the highest count
+    const maxStation = Object.entries(history).reduce((max, [station, count]) => 
+      count > max.count ? { station, count } : max,
+      { station: '', count: 0 }
+    );
+    
+    // Show warning if moving to the station they've been to the most (and at least 3 times)
+    if (maxStation.station === toStation && stationCount >= 3) {
       setWarningDialog({
         show: true,
         employeeName: getEmployeeShortName(draggedEmployee.id),
