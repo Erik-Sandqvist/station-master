@@ -469,6 +469,24 @@ const DailyPlanning = () => {
     }
   };
 
+  const clearAllAssignments = async () => {
+    const today = new Date().toISOString().split("T")[0];
+    setLoading(true);
+
+    // Ta bort alla tilldelningar från databasen
+    await supabase.from("daily_assignments").delete().eq("assigned_date", today);
+    await supabase.from("work_history").delete().eq("work_date", today);
+
+    // Rensa assignments state
+    setAssignments({});
+    setLoading(false);
+
+    toast({
+      title: "Rensat!",
+      description: "Alla stationer har tömts på medarbetare",
+    });
+  };
+
   return (
     <div className="space-y-6">
       <Card className="shadow-lg border-border/50">
@@ -682,7 +700,6 @@ const DailyPlanning = () => {
           const filledCount = station === "Pack" || station === "Auto Pack" || station === "Auto Plock" 
             ? assigned.filter(a => a).length 
             : assigned.length;
-          if (assigned.length === 0 && station !== "FL") return null;
 
           return (
             <Card
@@ -767,6 +784,18 @@ const DailyPlanning = () => {
           );
         })}
       </div>
+      {Object.keys(assignments).length > 0 && (
+        <div className="flex justify-center mt-4">
+          <Button
+            onClick={clearAllAssignments}
+            disabled={loading}
+            variant="destructive"
+            className="w-1/3"
+          >
+            Rensa
+          </Button>
+        </div>
+      )}
     </CardContent>
   </Card>
 )}
