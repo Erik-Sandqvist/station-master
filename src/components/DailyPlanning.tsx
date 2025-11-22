@@ -733,14 +733,14 @@ const DailyPlanning = () => {
                   <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
                     filledCount >= needed 
                       ? 'bg-black/60 text-white' 
-                      : 'bg-accent text-accent'
+                      : 'bg-black/60 text-red-300'
                   }`}>
                     {filledCount}/{needed}
                   </span>
                 )}
               </div>
               {station === "Pack" ? (
-  <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+  <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto">
     {Array.from({ length: 12 }, (_, idx) => (
       <div
         key={idx}
@@ -762,7 +762,7 @@ const DailyPlanning = () => {
     ))}
   </div>
 ) : station === "Auto Pack" || station === "Auto Plock" ? (
-  <div className="space-y-2 max-h-40 overflow-y-auto">
+  <div className="space-y-2 max-h-72 overflow-y-auto">
     {Array.from({ length: 6 }, (_, idx) => (
       <div
         key={idx}
@@ -784,7 +784,7 @@ const DailyPlanning = () => {
     ))}
   </div>
 ) : (
-  <div className="space-y-2 max-h-40 overflow-y-auto">
+  <div className="space-y-2 max-h-72 overflow-y-auto">
     {assigned.map((empId, idx) => (
       <div
         key={idx}
