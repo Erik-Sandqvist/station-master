@@ -362,34 +362,51 @@ const DailyPlanning = () => {
 
   const handleDropOnPackPosition = (station: string, targetIdx: number) => {
     if (!draggedEmployee || !draggedFrom) return;
-
+  
     setAssignments((prev) => {
       const updated = { ...prev };
       
-      // Ta bort från ursprunglig plats
-      if (draggedFrom === station) {
-        // Flyttar inom samma station
-        const sourceIdx = updated[draggedFrom].indexOf(draggedEmployee.id);
-        if (sourceIdx !== -1) {
-          updated[draggedFrom] = [...updated[draggedFrom]];
-          updated[draggedFrom][sourceIdx] = "";
+      // Specialfall: Om draggedFrom är "unassigned", skapa det inte i updated
+      if (draggedFrom !== "unassigned") {
+        // Säkerställ att draggedFrom station existerar
+        if (!updated[draggedFrom]) {
+          console.warn(`Station ${draggedFrom} har inga tilldelningar`);
+          return prev;
         }
-      } else {
-        // Flyttar från annan station
-        updated[draggedFrom] = updated[draggedFrom].filter((id) => id !== draggedEmployee.id);
+        
+        // Ta bort från ursprunglig plats
+        if (draggedFrom === station) {
+          // Flyttar inom samma station
+          const sourceIdx = updated[draggedFrom].indexOf(draggedEmployee.id);
+          if (sourceIdx !== -1) {
+            updated[draggedFrom] = [...updated[draggedFrom]];
+            updated[draggedFrom][sourceIdx] = "";
+          }
+        } else {
+          // Flyttar från annan station
+          if (Array.isArray(updated[draggedFrom])) {
+            updated[draggedFrom] = updated[draggedFrom].filter((id) => id !== draggedEmployee.id);
+          }
+        }
       }
-
+  
       // Lägg till på ny plats
       const maxPositions = station === "Pack" ? 12 : 6;
       if (!updated[station]) {
         updated[station] = Array(maxPositions).fill("");
       }
+      
+      // Säkerställ att vi har en array med rätt storlek
+      if (updated[station].length < maxPositions) {
+        updated[station] = [...updated[station], ...Array(maxPositions - updated[station].length).fill("")];
+      }
+      
       updated[station] = [...updated[station]];
       updated[station][targetIdx] = draggedEmployee.id;
-
+  
       return updated;
     });
-
+  
     setDraggedEmployee(null);
     setDraggedFrom(null);
   };
