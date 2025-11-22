@@ -15,7 +15,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Calendar, Users, Shuffle, Search } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Calendar, Users, Shuffle, Search, Info, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -60,6 +62,9 @@ const DailyPlanning = () => {
     count: number;
     onConfirm: () => void;
   } | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [employeeStations, setEmployeeStations] = useState<string[]>([]);
+  const [stationStats, setStationStats] = useState<Record<string, number>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -395,6 +400,75 @@ const DailyPlanning = () => {
     return matchesSearch && matchesShift;
   });
 
+  const openEmployeeDetails = async (employee: Employee) => {
+    setSelectedEmployee(employee);
+    
+    // Hämta medarbetarens stationer
+    const { data } = await supabase
+      .from("employee_stations")
+      .select("station")
+      .eq("employee_id", employee.id);
+    
+    setEmployeeStations(data?.map(d => d.station) || []);
+
+    // Hämta statistik för senaste 3 månaderna
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    
+    const { data: historyData } = await supabase
+      .from("work_history")
+      .select("station")
+      .eq("employee_id", employee.id)
+      .gte("work_date", threeMonthsAgo.toISOString().split('T')[0]);
+    
+    // Räkna antal gånger per station
+    const stats: Record<string, number> = {};
+    historyData?.forEach(record => {
+      stats[record.station] = (stats[record.station] || 0) + 1;
+    });
+    setStationStats(stats);
+  };
+
+  const toggleStation = async (station: string) => {
+    if (!selectedEmployee) return;
+
+    const hasStation = employeeStations.includes(station);
+    
+    if (hasStation) {
+      // Ta bort station
+      const { error } = await supabase
+        .from("employee_stations")
+        .delete()
+        .eq("employee_id", selectedEmployee.id)
+        .eq("station", station);
+
+      if (error) {
+        toast({
+          title: "Fel",
+          description: "Kunde inte ta bort station",
+          variant: "destructive",
+        });
+      } else {
+        setEmployeeStations(prev => prev.filter(s => s !== station));
+      }
+    } else {
+      // Lägg till station
+      const { error } = await supabase
+        .from("employee_stations")
+        .insert([{ employee_id: selectedEmployee.id, station }]);
+
+      if (error) {
+        toast({
+          title: "Fel",
+          description: "Kunde inte lägga till station",
+          variant: "destructive",
+        });
+      } else {
+        setEmployeeStations(prev => [...prev, station]);
+      }
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card className="shadow-lg border-border/50">
@@ -516,10 +590,20 @@ const DailyPlanning = () => {
         />
         <label
           htmlFor={employee.id}
-          className="text-sm font-medium leading-none cursor-pointer"
+          className="text-sm font-medium leading-none cursor-pointer flex-1"
         >
           {employee.name}
         </label>
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            openEmployeeDetails(employee);
+          }}
+          className="ml-auto p-1 rounded-full hover:bg-primary/20 transition-colors"
+          title="Visa information"
+        >
+          <Info className="h-4 w-4 text-primary" />
+        </button>
       </div>
     ))}
   </div>
@@ -705,6 +789,72 @@ const DailyPlanning = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog för medarbetarinformation */}
+      <Dialog open={!!selectedEmployee} onOpenChange={() => setSelectedEmployee(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              {selectedEmployee?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Välj vilka stationer {selectedEmployee?.name} kan arbeta på
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Skift</Label>
+              <Badge variant="outline" className="text-sm">
+                {selectedEmployee?.shift}
+              </Badge>
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Stationer</Label>
+              <div className="grid gap-3">
+                {STATIONS.map((station) => (
+                  <div key={station} className="flex items-center justify-between space-x-3">
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id={`employee-station-${station}`}
+                        checked={employeeStations.includes(station)}
+                        onCheckedChange={() => toggleStation(station)}
+                      />
+                      <label
+                        htmlFor={`employee-station-${station}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        {station}
+                      </label>
+                    </div>
+                    {stationStats[station] && (
+                      <Badge variant="secondary" className="text-xs">
+                        {stationStats[station]} gånger
+                      </Badge>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {Object.keys(stationStats).length > 0 && (
+              <div className="pt-4 border-t">
+                <p className="text-xs text-muted-foreground">
+                  Statistik visar antal arbetspass de senaste 3 månaderna
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={() => setSelectedEmployee(null)}>
+              Stäng
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
