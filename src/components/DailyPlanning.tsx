@@ -171,10 +171,6 @@ const DailyPlanning = () => {
     }
 
     setLoading(true);
-    const today = new Date().toISOString().split("T")[0];
-
-    // Clear existing assignments
-    await supabase.from("daily_assignments").delete().eq("assigned_date", today);
 
     // Get history for all selected employees
     const employeeHistories = await Promise.all(
@@ -210,20 +206,6 @@ const DailyPlanning = () => {
         const employee = available[i];
         newAssignments[station].push(employee.id);
         assignedEmployees.add(employee.id);
-
-        // Save to database
-        await supabase.from("daily_assignments").insert({
-          employee_id: employee.id,
-          station,
-          assigned_date: today,
-        });
-
-        // Save to history
-        await supabase.from("work_history").insert({
-          employee_id: employee.id,
-          station,
-          work_date: today,
-        });
       }
     }
 
@@ -237,7 +219,7 @@ const DailyPlanning = () => {
 
     toast({
       title: "Fördelning klar!",
-      description: `${assignedEmployees.size} medarbetare har tilldelats stationer`,
+      description: `${assignedEmployees.size} medarbetare har tilldelats stationer. Klicka på Spara för att spara till databasen.`,
     });
   };
 
@@ -300,7 +282,6 @@ const DailyPlanning = () => {
   const performMove = async (toStation: string) => {
     if (!draggedEmployee) return;
 
-    const today = new Date().toISOString().split("T")[0];
     setLoading(true);
 
     // Remove from old station
@@ -319,37 +300,6 @@ const DailyPlanning = () => {
     }
     updatedAssignments[toStation].push(draggedEmployee.id);
 
-    // Update database - delete old assignment if exists
-    if (draggedEmployee.fromStation !== "unassigned") {
-      await supabase
-        .from("daily_assignments")
-        .delete()
-        .eq("employee_id", draggedEmployee.id)
-        .eq("assigned_date", today)
-        .eq("station", draggedEmployee.fromStation);
-
-      // Update work history
-      await supabase
-        .from("work_history")
-        .delete()
-        .eq("employee_id", draggedEmployee.id)
-        .eq("work_date", today)
-        .eq("station", draggedEmployee.fromStation);
-    }
-
-    // Insert new assignment
-    await supabase.from("daily_assignments").insert({
-      employee_id: draggedEmployee.id,
-      station: toStation,
-      assigned_date: today,
-    });
-
-    await supabase.from("work_history").insert({
-      employee_id: draggedEmployee.id,
-      station: toStation,
-      work_date: today,
-    });
-
     setAssignments(updatedAssignments);
     setDraggedEmployee(null);
     setWarningDialog(null);
@@ -357,7 +307,7 @@ const DailyPlanning = () => {
 
     toast({
       title: "Flyttad!",
-      description: `${getEmployeeShortName(draggedEmployee.id)} har flyttats till ${toStation}`,
+      description: `${getEmployeeShortName(draggedEmployee.id)} har flyttats till ${toStation}. Kom ihåg att spara!`,
     });
   };
 
@@ -497,22 +447,64 @@ const DailyPlanning = () => {
     }
   };
 
-  const clearAllAssignments = async () => {
-    const today = new Date().toISOString().split("T")[0];
-    setLoading(true);
-
-    // Ta bort alla tilldelningar från databasen
-    await supabase.from("daily_assignments").delete().eq("assigned_date", today);
-    await supabase.from("work_history").delete().eq("work_date", today);
-
-    // Rensa assignments state
+  const clearAllAssignments = () => {
+    // Rensa assignments state (sparas inte till databasen förrän användaren klickar på Spara)
     setAssignments({});
-    setLoading(false);
 
     toast({
       title: "Rensat!",
-      description: "Alla stationer har tömts på medarbetare",
+      description: "Alla stationer har tömts på medarbetare. Klicka på Spara för att spara ändringarna.",
     });
+  };
+
+  const saveAllAssignments = async () => {
+    const today = new Date().toISOString().split("T")[0];
+    setLoading(true);
+
+    try {
+      // Ta bort alla befintliga tilldelningar för dagen
+      await supabase.from("daily_assignments").delete().eq("assigned_date", today);
+      await supabase.from("work_history").delete().eq("work_date", today);
+
+      // Spara alla nya tilldelningar
+      const assignmentsToSave: any[] = [];
+      const historyToSave: any[] = [];
+
+      Object.entries(assignments).forEach(([station, employeeIds]) => {
+        employeeIds.forEach((empId) => {
+          if (empId) { // Skippa tomma platser
+            assignmentsToSave.push({
+              employee_id: empId,
+              station,
+              assigned_date: today,
+            });
+            historyToSave.push({
+              employee_id: empId,
+              station,
+              work_date: today,
+            });
+          }
+        });
+      });
+
+      if (assignmentsToSave.length > 0) {
+        await supabase.from("daily_assignments").insert(assignmentsToSave);
+        await supabase.from("work_history").insert(historyToSave);
+      }
+
+      toast({
+        title: "Sparat!",
+        description: `${assignmentsToSave.length} tilldelningar har sparats till databasen`,
+      });
+    } catch (error) {
+      toast({
+        title: "Fel",
+        description: "Kunde inte spara tilldelningarna",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -813,7 +805,14 @@ const DailyPlanning = () => {
         })}
       </div>
       {Object.keys(assignments).length > 0 && (
-        <div className="flex justify-center mt-4">
+        <div className="flex justify-center gap-4 mt-4">
+          <Button
+            onClick={saveAllAssignments}
+            disabled={loading}
+            className="w-1/3 bg-gradient-to-r from-primary to-accent"
+          >
+            Spara
+          </Button>
           <Button
             onClick={clearAllAssignments}
             disabled={loading}
