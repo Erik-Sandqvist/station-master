@@ -65,6 +65,7 @@ const DailyPlanning = () => {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [employeeStations, setEmployeeStations] = useState<string[]>([]);
   const [stationStats, setStationStats] = useState<Record<string, number>>({});
+  const [recentWork, setRecentWork] = useState<{station: string, work_date: string}[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -444,6 +445,16 @@ const DailyPlanning = () => {
       stats[record.station] = (stats[record.station] || 0) + 1;
     });
     setStationStats(stats);
+
+    // Hämta de senaste 5 arbetsdagarna
+    const { data: recentHistory } = await supabase
+      .from("work_history")
+      .select("station, work_date")
+      .eq("employee_id", employee.id)
+      .order("work_date", { ascending: false })
+      .limit(5);
+    
+    setRecentWork(recentHistory || []);
   };
 
   const toggleStation = async (station: string) => {
@@ -884,6 +895,22 @@ const DailyPlanning = () => {
                 ))}
               </div>
             </div>
+
+            {recentWork.length > 0 && (
+              <div className="space-y-2 pt-4 border-t">
+                <Label className="text-sm font-medium">Senaste 5 stationerna</Label>
+                <div className="space-y-2">
+                  {recentWork.map((work, idx) => (
+                    <div key={idx} className="flex justify-between items-center p-2 rounded-lg bg-secondary/30">
+                      <span className="text-sm font-medium">{work.station}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(work.work_date).toLocaleDateString('sv-SE')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {Object.keys(stationStats).length > 0 && (
               <div className="pt-4 border-t">
