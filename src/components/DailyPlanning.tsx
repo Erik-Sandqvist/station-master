@@ -396,15 +396,15 @@ const DailyPlanning = () => {
     });
     setStationStats(stats);
 
-    // Hämta de senaste 5 arbetsdagarna
+    // Hämta de senaste 5 tilldelningarna från sparade fördelningar
     const { data: recentHistory } = await supabase
-      .from("work_history")
-      .select("station, work_date")
+      .from("daily_assignments")
+      .select("station, assigned_date")
       .eq("employee_id", employee.id)
-      .order("work_date", { ascending: false })
+      .order("assigned_date", { ascending: false })
       .limit(5);
     
-    setRecentWork(recentHistory || []);
+    setRecentWork(recentHistory?.map(r => ({ station: r.station, work_date: r.assigned_date })) || []);
   };
 
   const toggleStation = async (station: string) => {
