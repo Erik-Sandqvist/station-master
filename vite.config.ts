@@ -8,6 +8,10 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    allowedHosts: [
+      "cibarian-jaxton-nonabstracted.ngrok-free.dev",
+      ".ngrok-free.dev", // Tillåter alla ngrok-domäner
+    ],
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
