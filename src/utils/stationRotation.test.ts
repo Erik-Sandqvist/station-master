@@ -1,4 +1,110 @@
+import { canAssignToStation, getAvailableStationsForEmployee } from './stationRotation';
+
 describe('Station Rotation Logic', () => {
+  describe('canAssignToStation', () => {
+    test('should return true when employee has no previous assignment', () => {
+      const lastStationsMap = new Map<string, string | null>();
+      lastStationsMap.set('emp1', null);
+      
+      expect(canAssignToStation('emp1', 'Plock', lastStationsMap)).toBe(true);
+      expect(canAssignToStation('emp1', 'Pack', lastStationsMap)).toBe(true);
+    });
+
+    test('should return false when trying to assign to same station as last time', () => {
+      const lastStationsMap = new Map<string, string | null>();
+      lastStationsMap.set('emp1', 'Plock');
+      
+      expect(canAssignToStation('emp1', 'Plock', lastStationsMap)).toBe(false);
+    });
+
+    test('should return true when assigning to different station than last time', () => {
+      const lastStationsMap = new Map<string, string | null>();
+      lastStationsMap.set('emp1', 'Plock');
+      
+      expect(canAssignToStation('emp1', 'Pack', lastStationsMap)).toBe(true);
+      expect(canAssignToStation('emp1', 'KM', lastStationsMap)).toBe(true);
+    });
+
+    test('should handle unknown employee (not in map)', () => {
+      const lastStationsMap = new Map<string, string | null>();
+      
+      // Employee not in map should be allowed anywhere
+      expect(canAssignToStation('unknown-emp', 'Plock', lastStationsMap)).toBe(true);
+    });
+  });
+
+  describe('getAvailableStationsForEmployee', () => {
+    const allStations = ['Plock', 'Pack', 'KM', 'Decating', 'Rep'];
+
+    test('should return all stations when employee has no previous assignment', () => {
+      const lastStationsMap = new Map<string, string | null>();
+      lastStationsMap.set('emp1', null);
+      
+      const available = getAvailableStationsForEmployee('emp1', allStations, lastStationsMap);
+      
+      expect(available).toEqual(allStations);
+      expect(available.length).toBe(5);
+    });
+
+    test('should exclude last station from available stations', () => {
+      const lastStationsMap = new Map<string, string | null>();
+      lastStationsMap.set('emp1', 'Plock');
+      
+      const available = getAvailableStationsForEmployee('emp1', allStations, lastStationsMap);
+      
+      expect(available).not.toContain('Plock');
+      expect(available).toContain('Pack');
+      expect(available).toContain('KM');
+      expect(available.length).toBe(4);
+    });
+
+    test('should return all stations for unknown employee', () => {
+      const lastStationsMap = new Map<string, string | null>();
+      
+      const available = getAvailableStationsForEmployee('unknown-emp', allStations, lastStationsMap);
+      
+      expect(available).toEqual(allStations);
+    });
+  });
+
+  describe('Distribution scenarios', () => {
+    test('should prevent consecutive assignment to same station', () => {
+      // Simulate a distribution scenario
+      const lastStationsMap = new Map<string, string | null>();
+      lastStationsMap.set('emp1', 'Plock');
+      lastStationsMap.set('emp2', 'Pack');
+      lastStationsMap.set('emp3', 'KM');
+      
+      // emp1 was at Plock, so should NOT be able to go to Plock
+      expect(canAssignToStation('emp1', 'Plock', lastStationsMap)).toBe(false);
+      expect(canAssignToStation('emp1', 'Pack', lastStationsMap)).toBe(true);
+      
+      // emp2 was at Pack, so should NOT be able to go to Pack
+      expect(canAssignToStation('emp2', 'Pack', lastStationsMap)).toBe(false);
+      expect(canAssignToStation('emp2', 'Plock', lastStationsMap)).toBe(true);
+      
+      // emp3 was at KM, so should NOT be able to go to KM
+      expect(canAssignToStation('emp3', 'KM', lastStationsMap)).toBe(false);
+      expect(canAssignToStation('emp3', 'Decating', lastStationsMap)).toBe(true);
+    });
+
+    test('should handle multiple employees with same last station', () => {
+      const lastStationsMap = new Map<string, string | null>();
+      lastStationsMap.set('emp1', 'Plock');
+      lastStationsMap.set('emp2', 'Plock');
+      
+      // Both were at Plock, neither should be able to go back
+      expect(canAssignToStation('emp1', 'Plock', lastStationsMap)).toBe(false);
+      expect(canAssignToStation('emp2', 'Plock', lastStationsMap)).toBe(false);
+      
+      // But they can go to other stations
+      expect(canAssignToStation('emp1', 'Pack', lastStationsMap)).toBe(true);
+      expect(canAssignToStation('emp2', 'Pack', lastStationsMap)).toBe(true);
+    });
+  });
+
+  // Keep the old tests for station visit counting logic
+  describe('Station Visit Counting (legacy)', () => {
     test('should detect if employee visited station recently', () => {
       const employeeHistory = [
         { station: 'Plock', date: '2024-01-15' },
@@ -16,10 +122,6 @@ describe('Station Rotation Logic', () => {
     });
   
     test('should assign employee to least visited station in last 6 months', () => {
-      // Mock employee history for last 6 months
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-  
       const employeeHistory = [
         { station: 'Plock', date: '2024-07-15', employeeId: '1' },
         { station: 'Plock', date: '2024-08-10', employeeId: '1' },
@@ -28,12 +130,10 @@ describe('Station Rotation Logic', () => {
         { station: 'Pack', date: '2024-08-25', employeeId: '1' },
         { station: 'KM', date: '2024-09-12', employeeId: '1' },
         { station: 'Decating', date: '2024-10-01', employeeId: '1' },
-        // Rep has never been visited
       ];
   
       const availableStations = ['Plock', 'Pack', 'KM', 'Decating', 'Rep'];
   
-      // Function to calculate station visit counts
       const getStationVisitCounts = (history: typeof employeeHistory) => {
         const counts: Record<string, number> = {};
         availableStations.forEach(station => {
@@ -42,7 +142,6 @@ describe('Station Rotation Logic', () => {
         return counts;
       };
   
-      // Function to get least visited station
       const getLeastVisitedStation = (counts: Record<string, number>) => {
         return Object.entries(counts).reduce((min, [station, count]) => 
           count < min.count ? { station, count } : min,
@@ -53,7 +152,6 @@ describe('Station Rotation Logic', () => {
       const visitCounts = getStationVisitCounts(employeeHistory);
       const leastVisited = getLeastVisitedStation(visitCounts);
   
-      // Assert
       expect(visitCounts['Plock']).toBe(3);
       expect(visitCounts['Pack']).toBe(2);
       expect(visitCounts['KM']).toBe(1);
@@ -80,13 +178,11 @@ describe('Station Rotation Logic', () => {
   
       const visitCounts = getStationVisitCounts(employeeHistory);
       
-      // Find all stations with minimum count
       const minCount = Math.min(...Object.values(visitCounts));
       const leastVisitedStations = Object.entries(visitCounts)
         .filter(([_, count]) => count === minCount)
         .map(([station, _]) => station);
   
-      // Assert that KM and Rep both have 0 visits
       expect(visitCounts['KM']).toBe(0);
       expect(visitCounts['Rep']).toBe(0);
       expect(leastVisitedStations).toContain('KM');
@@ -94,3 +190,4 @@ describe('Station Rotation Logic', () => {
       expect(leastVisitedStations.length).toBe(2);
     });
   });
+});
