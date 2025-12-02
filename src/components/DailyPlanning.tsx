@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar, Users, Shuffle, Search, Info, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getEmployeesLastStations, canAssignToStation } from "@/utils/stationRotation";
 
 interface Employee {
   id: string;
@@ -178,11 +179,15 @@ const DailyPlanning = () => {
 
     setLoading(true);
 
-    // Get history for all selected employees
+    // Get last assigned station for each employee
+    const lastStationsMap = await getEmployeesLastStations(selectedEmployees);
+
+    // Get history for all selected employees (for 6-month rotation logic)
     const employeeHistories = await Promise.all(
       selectedEmployees.map(async (empId) => ({
         id: empId,
         history: await getEmployeeHistory(empId),
+        lastStation: lastStationsMap.get(empId) || null,
       }))
     );
 
@@ -199,9 +204,11 @@ const DailyPlanning = () => {
       const needed = stationNeeds[station] || 0;
       newAssignments[station] = [];
 
-      // Sort employees by least time at this station
+      // Filter out employees who were at this station last time
+      // Then sort remaining by least time at this station
       const available = employeeHistories
         .filter((emp) => !assignedEmployees.has(emp.id))
+        .filter((emp) => canAssignToStation(emp.id, station, lastStationsMap))
         .sort((a, b) => {
           const aCount = a.history[station] || 0;
           const bCount = b.history[station] || 0;
@@ -212,6 +219,36 @@ const DailyPlanning = () => {
         const employee = available[i];
         newAssignments[station].push(employee.id);
         assignedEmployees.add(employee.id);
+      }
+    }
+
+    // If some employees couldn't be assigned due to last-station restriction,
+    // try to assign them anyway (fallback)
+    const unassignedDueToRestriction = employeeHistories
+      .filter((emp) => !assignedEmployees.has(emp.id));
+    
+    if (unassignedDueToRestriction.length > 0) {
+      // Try to fill remaining needs, ignoring the last-station rule
+      for (const station of sortedStations) {
+        const needed = stationNeeds[station] || 0;
+        const currentCount = newAssignments[station]?.length || 0;
+        
+        if (currentCount < needed) {
+          const stillAvailable = unassignedDueToRestriction
+            .filter((emp) => !assignedEmployees.has(emp.id))
+            .sort((a, b) => {
+              const aCount = a.history[station] || 0;
+              const bCount = b.history[station] || 0;
+              return aCount - bCount;
+            });
+          
+          for (let i = 0; i < (needed - currentCount) && i < stillAvailable.length; i++) {
+            const employee = stillAvailable[i];
+            if (!newAssignments[station]) newAssignments[station] = [];
+            newAssignments[station].push(employee.id);
+            assignedEmployees.add(employee.id);
+          }
+        }
       }
     }
 
