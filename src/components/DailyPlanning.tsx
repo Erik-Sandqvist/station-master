@@ -225,64 +225,108 @@ const DailyPlanning = () => {
     const assignedEmployees = new Set<string>();
     const stationsToFill = STATIONS.filter((s) => s !== "FL");
 
-    // Sort stations by need (highest first)
-    const sortedStations = stationsToFill
-      .filter((station) => (stationNeeds[station] || 0) > 0)
-      .sort((a, b) => (stationNeeds[b] || 0) - (stationNeeds[a] || 0));
+    // Get stations that need employees
+    const stationsWithNeeds = stationsToFill.filter((station) => (stationNeeds[station] || 0) > 0);
 
-    for (const station of sortedStations) {
-      const needed = stationNeeds[station] || 0;
+    // Initialize assignments
+    stationsWithNeeds.forEach(station => {
       newAssignments[station] = [];
+    });
 
-      // Filter by:
-      // 1. Not already assigned
-      // 2. Has competency for this station (MUST have competency)
-      // 3. Not at this station last time
-      // Then sort remaining by least time at this station
-      const available = employeeHistories
-        .filter((emp) => !assignedEmployees.has(emp.id))
-        .filter((emp) => emp.competencies.has(station)) // Must have competency for this station
-        .filter((emp) => canAssignToStation(emp.id, station, lastStationsMap))
-        .sort((a, b) => {
-          const aCount = a.history[station] || 0;
-          const bCount = b.history[station] || 0;
-          return aCount - bCount;
-        });
+    // Smart distribution algorithm:
+    // 1. Prioritize employees with FEWER competencies (less flexible = assign first)
+    // 2. Prioritize stations with FEWER available employees (critical stations first)
+    // This ensures we maximize total assignments
+    
+    const getAvailableEmployeesForStation = (station: string) => {
+      return employeeHistories.filter(emp => 
+        !assignedEmployees.has(emp.id) && 
+        emp.competencies.has(station)
+      );
+    };
 
-      for (let i = 0; i < needed && i < available.length; i++) {
-        const employee = available[i];
-        newAssignments[station].push(employee.id);
-        assignedEmployees.add(employee.id);
+    const getRemainingNeed = (station: string) => {
+      return (stationNeeds[station] || 0) - (newAssignments[station]?.length || 0);
+    };
+
+    // Keep assigning until no more assignments can be made
+    let madeAssignment = true;
+    while (madeAssignment) {
+      madeAssignment = false;
+
+      // Sort stations by: fewest available employees first (critical stations)
+      const stationsByScarcity = stationsWithNeeds
+        .filter(station => getRemainingNeed(station) > 0)
+        .map(station => ({
+          station,
+          availableCount: getAvailableEmployeesForStation(station).length,
+          need: getRemainingNeed(station)
+        }))
+        .filter(s => s.availableCount > 0)
+        .sort((a, b) => a.availableCount - b.availableCount);
+
+      for (const { station } of stationsByScarcity) {
+        if (getRemainingNeed(station) <= 0) continue;
+
+        // Get available employees, sorted by:
+        // 1. Fewest competencies first (less flexible employees)
+        // 2. Not at this station last time (rotation rule)
+        // 3. Least times at this station (history)
+        const available = getAvailableEmployeesForStation(station)
+          .filter(emp => canAssignToStation(emp.id, station, lastStationsMap))
+          .sort((a, b) => {
+            // First: fewer competencies = higher priority
+            const compDiff = a.competencies.size - b.competencies.size;
+            if (compDiff !== 0) return compDiff;
+            // Then: least times at this station
+            const aCount = a.history[station] || 0;
+            const bCount = b.history[station] || 0;
+            return aCount - bCount;
+          });
+
+        if (available.length > 0) {
+          const employee = available[0];
+          newAssignments[station].push(employee.id);
+          assignedEmployees.add(employee.id);
+          madeAssignment = true;
+          break; // Re-evaluate station priorities after each assignment
+        }
       }
     }
 
-    // If some employees couldn't be assigned due to last-station restriction,
-    // try to assign them anyway (fallback) - but still respect competencies
-    const unassignedDueToRestriction = employeeHistories
-      .filter((emp) => !assignedEmployees.has(emp.id));
-    
-    if (unassignedDueToRestriction.length > 0) {
-      // Try to fill remaining needs, ignoring the last-station rule but respecting competencies
-      for (const station of sortedStations) {
-        const needed = stationNeeds[station] || 0;
-        const currentCount = newAssignments[station]?.length || 0;
-        
-        if (currentCount < needed) {
-          const stillAvailable = unassignedDueToRestriction
-            .filter((emp) => !assignedEmployees.has(emp.id))
-            .filter((emp) => emp.competencies.has(station)) // Must have competency for this station
-            .sort((a, b) => {
-              const aCount = a.history[station] || 0;
-              const bCount = b.history[station] || 0;
-              return aCount - bCount;
-            });
-          
-          for (let i = 0; i < (needed - currentCount) && i < stillAvailable.length; i++) {
-            const employee = stillAvailable[i];
-            if (!newAssignments[station]) newAssignments[station] = [];
-            newAssignments[station].push(employee.id);
-            assignedEmployees.add(employee.id);
-          }
+    // Second pass: try to fill remaining needs ignoring last-station rule
+    madeAssignment = true;
+    while (madeAssignment) {
+      madeAssignment = false;
+
+      const stationsByScarcity = stationsWithNeeds
+        .filter(station => getRemainingNeed(station) > 0)
+        .map(station => ({
+          station,
+          availableCount: getAvailableEmployeesForStation(station).length,
+        }))
+        .filter(s => s.availableCount > 0)
+        .sort((a, b) => a.availableCount - b.availableCount);
+
+      for (const { station } of stationsByScarcity) {
+        if (getRemainingNeed(station) <= 0) continue;
+
+        // Ignore rotation rule in fallback
+        const available = getAvailableEmployeesForStation(station)
+          .sort((a, b) => {
+            const compDiff = a.competencies.size - b.competencies.size;
+            if (compDiff !== 0) return compDiff;
+            const aCount = a.history[station] || 0;
+            const bCount = b.history[station] || 0;
+            return aCount - bCount;
+          });
+
+        if (available.length > 0) {
+          const employee = available[0];
+          newAssignments[station].push(employee.id);
+          assignedEmployees.add(employee.id);
+          madeAssignment = true;
+          break;
         }
       }
     }
