@@ -169,6 +169,30 @@ const DailyPlanning = () => {
     return stationCount;
   };
 
+  const getEmployeeCompetencies = async (employeeIds: string[]): Promise<Map<string, Set<string>>> => {
+    const competenciesMap = new Map<string, Set<string>>();
+    
+    // Initialize all employees with empty set
+    employeeIds.forEach(id => competenciesMap.set(id, new Set()));
+    
+    if (employeeIds.length === 0) return competenciesMap;
+    
+    const { data } = await supabase
+      .from("employee_stations")
+      .select("employee_id, station")
+      .in("employee_id", employeeIds);
+    
+    if (data) {
+      data.forEach((item) => {
+        const existing = competenciesMap.get(item.employee_id) || new Set();
+        existing.add(item.station);
+        competenciesMap.set(item.employee_id, existing);
+      });
+    }
+    
+    return competenciesMap;
+  };
+
   const distributeEmployees = async () => {
     if (selectedEmployees.length === 0) {
       toast({
@@ -181,78 +205,88 @@ const DailyPlanning = () => {
 
     setLoading(true);
 
-  // Get last assigned station for each employee
-  const lastStationsMap = await getEmployeesLastStations(selectedEmployees);
+    // Get last assigned station for each employee
+    const lastStationsMap = await getEmployeesLastStations(selectedEmployees);
+    
+    // Get employee competencies (which stations they can work at)
+    const competenciesMap = await getEmployeeCompetencies(selectedEmployees);
 
-  // Get history for all selected employees (for 6-month rotation logic)
-  const employeeHistories = await Promise.all(
-    selectedEmployees.map(async (empId) => ({
-      id: empId,
-      history: await getEmployeeHistory(empId),
-      lastStation: lastStationsMap.get(empId) || null,
-    }))
-  );
+    // Get history for all selected employees (for 6-month rotation logic)
+    const employeeHistories = await Promise.all(
+      selectedEmployees.map(async (empId) => ({
+        id: empId,
+        history: await getEmployeeHistory(empId),
+        lastStation: lastStationsMap.get(empId) || null,
+        competencies: competenciesMap.get(empId) || new Set<string>(),
+      }))
+    );
 
-  const newAssignments: Record<string, string[]> = {};
-  const assignedEmployees = new Set<string>();
-  const stationsToFill = STATIONS.filter((s) => s !== "FL");
+    const newAssignments: Record<string, string[]> = {};
+    const assignedEmployees = new Set<string>();
+    const stationsToFill = STATIONS.filter((s) => s !== "FL");
 
-  // Sort stations by need (highest first)
-  const sortedStations = stationsToFill
-    .filter((station) => (stationNeeds[station] || 0) > 0)
-    .sort((a, b) => (stationNeeds[b] || 0) - (stationNeeds[a] || 0));
+    // Sort stations by need (highest first)
+    const sortedStations = stationsToFill
+      .filter((station) => (stationNeeds[station] || 0) > 0)
+      .sort((a, b) => (stationNeeds[b] || 0) - (stationNeeds[a] || 0));
 
-  for (const station of sortedStations) {
-    const needed = stationNeeds[station] || 0;
-    newAssignments[station] = [];
-
-    // Filter out employees who were at this station last time
-    // Then sort remaining by least time at this station
-    const available = employeeHistories
-      .filter((emp) => !assignedEmployees.has(emp.id))
-      .filter((emp) => canAssignToStation(emp.id, station, lastStationsMap))
-      .sort((a, b) => {
-        const aCount = a.history[station] || 0;
-        const bCount = b.history[station] || 0;
-        return aCount - bCount;
-      });
-
-    for (let i = 0; i < needed && i < available.length; i++) {
-      const employee = available[i];
-      newAssignments[station].push(employee.id);
-      assignedEmployees.add(employee.id);
-    }
-  }
-
-  // If some employees couldn't be assigned due to last-station restriction,
-  // try to assign them anyway (fallback)
-  const unassignedDueToRestriction = employeeHistories
-    .filter((emp) => !assignedEmployees.has(emp.id));
-  
-  if (unassignedDueToRestriction.length > 0) {
-    // Try to fill remaining needs, ignoring the last-station rule
     for (const station of sortedStations) {
       const needed = stationNeeds[station] || 0;
-      const currentCount = newAssignments[station]?.length || 0;
-      
-      if (currentCount < needed) {
-        const stillAvailable = unassignedDueToRestriction
-          .filter((emp) => !assignedEmployees.has(emp.id))
-          .sort((a, b) => {
-            const aCount = a.history[station] || 0;
-            const bCount = b.history[station] || 0;
-            return aCount - bCount;
-          });
+      newAssignments[station] = [];
+
+      // Filter by:
+      // 1. Not already assigned
+      // 2. Has competency for this station
+      // 3. Not at this station last time
+      // Then sort remaining by least time at this station
+      const available = employeeHistories
+        .filter((emp) => !assignedEmployees.has(emp.id))
+        .filter((emp) => emp.competencies.size === 0 || emp.competencies.has(station)) // Allow if no competencies set OR has competency
+        .filter((emp) => canAssignToStation(emp.id, station, lastStationsMap))
+        .sort((a, b) => {
+          const aCount = a.history[station] || 0;
+          const bCount = b.history[station] || 0;
+          return aCount - bCount;
+        });
+
+      for (let i = 0; i < needed && i < available.length; i++) {
+        const employee = available[i];
+        newAssignments[station].push(employee.id);
+        assignedEmployees.add(employee.id);
+      }
+    }
+
+    // If some employees couldn't be assigned due to last-station restriction,
+    // try to assign them anyway (fallback) - but still respect competencies
+    const unassignedDueToRestriction = employeeHistories
+      .filter((emp) => !assignedEmployees.has(emp.id));
+    
+    if (unassignedDueToRestriction.length > 0) {
+      // Try to fill remaining needs, ignoring the last-station rule but respecting competencies
+      for (const station of sortedStations) {
+        const needed = stationNeeds[station] || 0;
+        const currentCount = newAssignments[station]?.length || 0;
         
-        for (let i = 0; i < (needed - currentCount) && i < stillAvailable.length; i++) {
-          const employee = stillAvailable[i];
-          if (!newAssignments[station]) newAssignments[station] = [];
-          newAssignments[station].push(employee.id);
-          assignedEmployees.add(employee.id);
+        if (currentCount < needed) {
+          const stillAvailable = unassignedDueToRestriction
+            .filter((emp) => !assignedEmployees.has(emp.id))
+            .filter((emp) => emp.competencies.size === 0 || emp.competencies.has(station)) // Respect competencies
+            .sort((a, b) => {
+              const aCount = a.history[station] || 0;
+              const bCount = b.history[station] || 0;
+              return aCount - bCount;
+            });
+          
+          for (let i = 0; i < (needed - currentCount) && i < stillAvailable.length; i++) {
+            const employee = stillAvailable[i];
+            if (!newAssignments[station]) newAssignments[station] = [];
+            newAssignments[station].push(employee.id);
+            assignedEmployees.add(employee.id);
+          }
         }
       }
     }
-  }
+
     // Handle FL manual assignment
     if (flManual.trim()) {
       newAssignments["FL"] = [flManual];
@@ -261,9 +295,15 @@ const DailyPlanning = () => {
     setAssignments(newAssignments);
     setLoading(false);
 
+    // Count unassigned employees
+    const unassignedCount = selectedEmployees.length - assignedEmployees.size;
+    const unassignedMsg = unassignedCount > 0 
+      ? ` ${unassignedCount} medarbetare saknar kompetens för lediga stationer.`
+      : "";
+
     toast({
       title: "Fördelning klar!",
-      description: `${assignedEmployees.size} medarbetare har tilldelats stationer. Klicka på Spara för att spara till databasen.`,
+      description: `${assignedEmployees.size} medarbetare har tilldelats stationer.${unassignedMsg} Klicka på Spara för att spara till databasen.`,
     });
   };
 
