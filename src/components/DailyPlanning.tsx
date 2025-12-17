@@ -236,12 +236,12 @@ const DailyPlanning = () => {
 
       // Filter by:
       // 1. Not already assigned
-      // 2. Has competency for this station
+      // 2. Has competency for this station (MUST have competency)
       // 3. Not at this station last time
       // Then sort remaining by least time at this station
       const available = employeeHistories
         .filter((emp) => !assignedEmployees.has(emp.id))
-        .filter((emp) => emp.competencies.size === 0 || emp.competencies.has(station)) // Allow if no competencies set OR has competency
+        .filter((emp) => emp.competencies.has(station)) // Must have competency for this station
         .filter((emp) => canAssignToStation(emp.id, station, lastStationsMap))
         .sort((a, b) => {
           const aCount = a.history[station] || 0;
@@ -270,7 +270,7 @@ const DailyPlanning = () => {
         if (currentCount < needed) {
           const stillAvailable = unassignedDueToRestriction
             .filter((emp) => !assignedEmployees.has(emp.id))
-            .filter((emp) => emp.competencies.size === 0 || emp.competencies.has(station)) // Respect competencies
+            .filter((emp) => emp.competencies.has(station)) // Must have competency for this station
             .sort((a, b) => {
               const aCount = a.history[station] || 0;
               const bCount = b.history[station] || 0;
