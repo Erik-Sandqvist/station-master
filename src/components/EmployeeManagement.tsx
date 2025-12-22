@@ -4,9 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { EmployeeDetailsDialog } from "@/components/EmployeeDetailsDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Trash2, UserCheck, UserX, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +37,7 @@ const EmployeeManagement = () => {
   const [filterShift, setFilterShift] = useState("Alla");
   const [loading, setLoading] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [recentWork, setRecentWork] = useState<{station: string, work_date: string}[]>([]);
   const [employeeStations, setEmployeeStations] = useState<string[]>([]);
   const [stationStats, setStationStats] = useState<Record<string, number>>({});
   const { toast } = useToast();
@@ -120,30 +120,43 @@ const EmployeeManagement = () => {
   const openEmployeeDetails = async (employee: Employee) => {
     setSelectedEmployee(employee);
     
-    // Hämta medarbetarens stationer
-    const { data } = await supabase
-      .from("employee_stations")
-      .select("station")
-      .eq("employee_id", employee.id);
-    
-    setEmployeeStations(data?.map(d => d.station) || []);
-
-    // Hämta statistik för senaste 3 månaderna
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-    
-    const { data: historyData } = await supabase
-      .from("work_history")
-      .select("station")
-      .eq("employee_id", employee.id)
-      .gte("work_date", threeMonthsAgo.toISOString().split('T')[0]);
-    
-    // Räkna antal gånger per station
-    const stats: Record<string, number> = {};
-    historyData?.forEach(record => {
-      stats[record.station] = (stats[record.station] || 0) + 1;
-    });
-    setStationStats(stats);
+    try {
+      // Hämta medarbetarens stationer
+      const { data: stationsData } = await supabase
+        .from("employee_stations")
+        .select("station")
+        .eq("employee_id", employee.id);
+      
+      setEmployeeStations(stationsData?.map(d => d.station) || []);
+  
+      // Hämta statistik för senaste 6 månaderna
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      
+      const { data: historyData } = await supabase
+        .from("work_history")
+        .select("station, work_date")
+        .eq("employee_id", employee.id)
+        .gte("work_date", sixMonthsAgo.toISOString().split('T')[0])
+        .order('work_date', { ascending: false });
+      
+      // Räkna antal gånger per station
+      const stats: Record<string, number> = {};
+      historyData?.forEach(record => {
+        stats[record.station] = (stats[record.station] || 0) + 1;
+      });
+      setStationStats(stats);
+  
+      // Senaste 5 stationerna
+      setRecentWork(historyData?.slice(0, 5) || []);
+      
+    } catch (error) {
+      toast({
+        title: "Fel",
+        description: "Kunde inte hämta medarbetardata",
+        variant: "destructive",
+      });
+    }
   };
 
   const toggleStation = async (station: string) => {
@@ -248,14 +261,19 @@ const EmployeeManagement = () => {
             <Button
               onClick={addEmployee}
               disabled={loading}
-              className="gap-2 bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity"
+              className="gap-2 bg-gradient-to-r from-primary to-secondary hover:opacity-80 transition-opacity"
             >
               <Plus className="h-4 w-4" />
               Lägg till
             </Button>
           </div>
         </div>
-
+        <div className="border flex-col"><p>Här kan man kanske ha möjliget att kolla på de olika grupperna (Förslag)</p>
+        <div className="border h-8 flex items-center pl-8">GruppNamn1 v</div>
+        <div className="border h-8 flex items-center pl-8">Ängland v</div>
+        <div className="border h-8 flex items-center pl-8">Solvinden v</div>
+        <div className="border h-8 flex items-center pl-8">GruppNamn4 v</div>
+        </div>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium text-foreground">
@@ -344,71 +362,15 @@ const EmployeeManagement = () => {
         </div>
       </CardContent>
 
-      {/* Dialog för medarbetardetaljer */}
-      <Dialog open={!!selectedEmployee} onOpenChange={() => setSelectedEmployee(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              {selectedEmployee?.name}
-            </DialogTitle>
-            <DialogDescription>
-              Välj vilka stationer {selectedEmployee?.name} kan arbeta på
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Skift</Label>
-              <Badge variant="outline" className="text-sm">
-                {selectedEmployee?.shift}
-              </Badge>
-            </div>
-
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Stationer</Label>
-              <div className="grid gap-3">
-                {STATIONS.map((station) => (
-                  <div key={station} className="flex items-center justify-between space-x-3">
-                    <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id={`station-${station}`}
-                        checked={employeeStations.includes(station)}
-                        onCheckedChange={() => toggleStation(station)}
-                      />
-                      <label
-                        htmlFor={`station-${station}`}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                      >
-                        {station}
-                      </label>
-                    </div>
-                    {stationStats[station] && (
-                      <Badge variant="secondary" className="text-xs">
-                        {stationStats[station]} gånger
-                      </Badge>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {Object.keys(stationStats).length > 0 && (
-              <div className="pt-4 border-t">
-                <p className="text-xs text-muted-foreground">
-                  Statistik visar antal arbetspass de senaste 3 månaderna
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-end">
-            <Button onClick={() => setSelectedEmployee(null)}>
-              Stäng
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <EmployeeDetailsDialog
+  employee={selectedEmployee}
+  onOpenChange={(open) => !open && setSelectedEmployee(null)}
+  employeeStations={employeeStations}
+  stationStats={stationStats}
+  recentWork={recentWork}
+  stations={STATIONS}
+  onToggleStation={toggleStation}
+/>
     </Card>
   );
 };

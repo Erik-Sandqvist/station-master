@@ -4,7 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { StationCard } from "@/components/StationCard";
+import { StationNeedsCard } from "@/components/StationNeedsCard";
+import { EmployeeDetailsDialog } from "@/components/EmployeeDetailsDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,6 +33,7 @@ interface Employee {
   id: string;
   name: string;
   shift: string;
+  is_active: boolean;
 }
 
 interface StationNeed {
@@ -57,11 +65,13 @@ const DailyPlanning = () => {
   const [stationNeeds, setStationNeeds] = useState<Record<string, number>>({});
   const [assignments, setAssignments] = useState<Record<string, string[]>>({});
   const [flManual, setFlManual] = useState("");
+  const [hasUnsavedNeeds, setHasUnsavedNeeds] = useState(false);
   const [loading, setLoading] = useState(false);
   const [draggedEmployee, setDraggedEmployee] = useState<{ id: string; fromStation: string } | null>(null);
   const [draggedFrom, setDraggedFrom] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [shiftFilter, setShiftFilter] = useState<string>("Alla");
+  const [flPopoverOpen, setFlPopoverOpen] = useState(false);
   const [warningDialog, setWarningDialog] = useState<{
     show: boolean;
     employeeName: string;
@@ -86,7 +96,7 @@ const DailyPlanning = () => {
   const fetchEmployees = async () => {
     const { data } = await supabase
       .from("employees")
-      .select("id, name, shift")
+      .select("id, name, shift, is_active")
       .eq("is_active", true)
       .order("name");
 
@@ -744,53 +754,19 @@ const DailyPlanning = () => {
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-lg border-border/50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-6 w-6 text-primary" />
-            Personalbehovsplanering
-          </CardTitle>
-          <CardDescription>
-            Ange hur många personer som behövs på varje station idag
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-            {STATIONS.map((station) => (
-              <div key={station} className="space-y-2 w-90%">
-                <Label htmlFor={`station-${station}`} className="text-sm font-medium">
-                  {station}
-                </Label>
-                <Input
-                  id={`station-${station}`}
-                  type="number"
-                  min="0"
-                  value={stationNeeds[station] || 0}
-                  onChange={(e) =>
-                    setStationNeeds({
-                      ...stationNeeds,
-                      [station]: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="text-center font-semibold bg-sidebar-input large-spinner h-10"
-                  disabled={station === "FL"}
-                />
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-center">
-          <Button
-          onClick={saveStationNeeds}
-          disabled={loading}
-          className="w-3/5 h-12 bg-gradient-to-r from-primary to-white backdrop-blur-lg border
-            shadow-2xl hover:from-primary/70 hover:to-secondary/70 hover:shadow-3xl
-            transition-all duration-300 hover:scale-[1.02] text-xl z-0"
-            >
-         Spara behov
-        </Button>
-        </div>
-        </CardContent>
-      </Card>
+      <StationNeedsCard
+  stations={STATIONS}
+  stationNeeds={stationNeeds}
+  onUpdateNeed={(station, count) => {
+    setStationNeeds({
+      ...stationNeeds,
+      [station]: count,
+    });
+    setHasUnsavedNeeds(true);
+  }}
+  onSave={saveStationNeeds}
+  loading={loading}
+/>
 
       <Card className="shadow-lg border-border/50">
         <CardHeader>
@@ -881,15 +857,51 @@ const DailyPlanning = () => {
     ))}
   </div>
   <div className="space-y-2 pt-4 border-t">
-            <Label htmlFor="fl-manual">FL Station (Manuell tilldelning)</Label>
-            <Input
-              id="fl-manual"
-              placeholder="Skriv namn för FL station..."
-              value={flManual}
-              onChange={(e) => setFlManual(e.target.value)}
-              className="bg-sidebar-input"
-            />
-          </div>
+  <Label htmlFor="fl-manual">FL Station</Label>
+  <Popover open={flPopoverOpen} onOpenChange={setFlPopoverOpen}>
+    <PopoverTrigger asChild>
+      <Button
+        variant="outline"
+        role="combobox"
+        aria-expanded={flPopoverOpen}
+        className="w-full justify-between bg-white hover:bg-primary/20"
+      >
+        {flManual
+          ? employees.find((e) => e.id === flManual)?.name || "Välj medarbetare..."
+          : "Välj medarbetare..."}
+        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+      </Button>
+    </PopoverTrigger>
+    <PopoverContent className="w-full p-0">
+      <Command className="w-96">
+        <CommandInput placeholder="Sök medarbetare..." />
+        <CommandList>
+          <CommandEmpty>Ingen medarbetare hittades.</CommandEmpty>
+          <CommandGroup>
+            {employees.map((employee) => (
+              <CommandItem
+                key={employee.id}
+                value={employee.name}
+                onSelect={() => {
+                  setFlManual(employee.id);
+                  setFlPopoverOpen(false);
+                }}
+              >
+                <Check
+                  className={cn(
+                    "mr-2 h-4 w-4",
+                    flManual === employee.id ? "opacity-100" : "opacity-0"
+                  )}
+                />
+                {employee.name}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        </CommandList>
+      </Command>
+    </PopoverContent>
+  </Popover>
+</div>
 
           <Button
             onClick={distributeEmployees}
@@ -949,148 +961,29 @@ const DailyPlanning = () => {
         )()}
 
 {STATIONS.filter(station => !SUB_STATIONS[station]).map((station) => {
-          const assigned = assignments[station] || [];
-          const needed = stationNeeds[station] || 0;
-          const filledCount = station === "Pack" || station === "Auto Pack" || station === "Auto Plock" 
-            ? assigned.filter(a => a).length 
-            : assigned.length;
-          
-          // Hitta understationer för denna station
-          const subStations = Object.entries(SUB_STATIONS)
-            .filter(([_, parent]) => parent === station)
-            .map(([sub]) => sub);
+  const assigned = assignments[station] || [];
+  const needed = stationNeeds[station] || 0;
+  const subStations = Object.entries(SUB_STATIONS)
+    .filter(([_, parent]) => parent === station)
+    .map(([sub]) => sub);
 
-          return (
-            <Card
-              key={station}
-              className="p-4 bg-white backdrop-blur-md border border-white/50 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
-              onDragOver={handleDragOver}
-              onDrop={() => handleDrop(station)}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-black">
-                  {station}
-                </h3>
-                {station !== "FL" && (
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                    filledCount >= needed 
-                      ? 'bg-black/60 text-white' 
-                      : 'bg-black/60 text-red-300'
-                  }`}>
-                    {filledCount}/{needed}
-                  </span>
-                )}
-              </div>
-              {station === "Pack" ? (
-  <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto">
-    {Array.from({ length: 12 }, (_, idx) => (
-      <div
-        key={idx}
-        draggable={!!assigned[idx]}
-        onDragStart={() => assigned[idx] && handleDragStart(assigned[idx], station)}
-        onDragOver={handleDragOver}
-        onDrop={(e) => {
-          e.stopPropagation();
-          handleDropOnPackPosition(station, idx);
-        }}
-        className={`text-sm text-black p-2 rounded-lg ${
-          assigned[idx] 
-            ? 'bg-white cursor-move hover:bg-primary/25 backdrop-blur-sm' 
-            : 'backdrop-blur-sm'
-        } transition-all duration-200`}
-      >
-        {idx + 1}. {assigned[idx] ? getEmployeeShortName(assigned[idx]) : '–'}
-      </div>
-    ))}
-  </div>
-) : station === "Auto Pack" || station === "Auto Plock" ? (
-  <div className="space-y-2 max-h-72 overflow-y-auto">
-    {Array.from({ length: 6 }, (_, idx) => (
-      <div
-        key={idx}
-        draggable={!!assigned[idx]}
-        onDragStart={() => assigned[idx] && handleDragStart(assigned[idx], station)}
-        onDragOver={handleDragOver}
-        onDrop={(e) => {
-          e.stopPropagation();
-          handleDropOnPackPosition(station, idx);
-        }}
-        className={`text-sm text-black p-2 rounded-lg ${
-          assigned[idx] 
-            ? 'bg-white cursor-move hover:bg-primary/25 backdrop-blur-sm' 
-            : 'backdrop-blur-sm'
-        } transition-all duration-200`}
-      >
-        {idx + 1}. {assigned[idx] ? getEmployeeShortName(assigned[idx]) : '–'}
-      </div>
-    ))}
-  </div>
-) : (
-  <div className="space-y-2 max-h-72 overflow-y-auto">
-    {assigned.map((empId, idx) => (
-      <div
-        key={idx}
-        draggable
-        onDragStart={() => handleDragStart(empId, station)}
-        className="text-sm text-black cursor-move p-2 rounded-lg bg-white hover:bg-primary/25 backdrop-blur-sm transition-all duration-200"
-      >
-        • {getEmployeeShortName(empId)}
-      </div>
-    ))}
-  </div>
-)}
-
- {/* Rendera understationer */}
- {subStations.map((subStation) => {
-                const subAssigned = assignments[subStation] || [];
-                const subNeeded = stationNeeds[subStation] || 0;
-                
-                return (
-                  <div
-                    key={subStation}
-                    className="mt-4 pt-3 border-t border-gray-200"
-                    onDragOver={handleDragOver}
-                    onDrop={(e) => {
-                      e.stopPropagation();
-                      handleDrop(subStation);
-                    }}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-medium text-sm text-black/80">
-                        {subStation}
-                      </h4>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        subAssigned.length >= subNeeded 
-                          ? 'bg-black/60 text-white' 
-                          : 'bg-black/60 text-red-300'
-                      }`}>
-                        {subAssigned.length}/{subNeeded}
-                      </span>
-                    </div>
-                    <div className="space-y-1">
-                      {subAssigned.length > 0 ? (
-                        subAssigned.map((empId, idx) => (
-                          <div
-                            key={idx}
-                            draggable
-                            onDragStart={() => handleDragStart(empId, subStation)}
-                            className="text-sm text-black cursor-move p-2 rounded-lg bg-gray-50 hover:bg-primary/25 backdrop-blur-sm transition-all duration-200"
-                          >
-                            • {getEmployeeShortName(empId)}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-sm text-gray-400 p-2">
-                          Dra hit för att tilldela
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </Card>
-          );
-        })}
+  return (
+    <StationCard
+      key={station}
+      station={station}
+      assigned={assigned}
+      needed={needed}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      onDragStart={handleDragStart}
+      onDropOnPackPosition={handleDropOnPackPosition}
+      getEmployeeShortName={getEmployeeShortName}
+      subStations={subStations}
+      assignments={assignments}
+      stationNeeds={stationNeeds}
+    />
+  );
+})}
       </div>
       {Object.keys(assignments).length > 0 && (
         <div className="flex justify-center gap-4 mt-4">
@@ -1135,86 +1028,15 @@ const DailyPlanning = () => {
       </AlertDialog>
 
       {/* Dialog för medarbetarinformation */}
-      <Dialog open={!!selectedEmployee} onOpenChange={() => setSelectedEmployee(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              {selectedEmployee?.name}
-            </DialogTitle>
-            <DialogDescription>
-              Välj vilka stationer {selectedEmployee?.name} kan arbeta på
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Skift</Label>
-              <Badge variant="outline" className="text-sm">
-                {selectedEmployee?.shift}
-              </Badge>
-            </div>
-
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Stationer</Label>
-              <div className="grid gap-3">
-                {STATIONS.map((station) => (
-                  <div key={station} className="flex items-center justify-between space-x-3">
-                    <div className="flex items-center space-x-3">
-                      <Checkbox
-                        id={`employee-station-${station}`}
-                        checked={employeeStations.includes(station)}
-                        onCheckedChange={() => toggleStation(station)}
-                      />
-                      <label
-                        htmlFor={`employee-station-${station}`}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                      >
-                        {station}
-                      </label>
-                    </div>
-                    {stationStats[station] && (
-                      <Badge variant="secondary" className="text-xs">
-                        {stationStats[station]} gånger
-                      </Badge>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {recentWork.length > 0 && (
-              <div className="space-y-2 pt-4 border-t">
-                <Label className="text-sm font-medium">Senaste 5 stationerna</Label>
-                <div className="space-y-2">
-                  {recentWork.map((work, idx) => (
-                    <div key={idx} className="flex justify-between items-center p-2 rounded-lg bg-secondary/30">
-                      <span className="text-sm font-medium">{work.station}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(work.work_date).toLocaleDateString('sv-SE')}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {Object.keys(stationStats).length > 0 && (
-              <div className="pt-4 border-t">
-                <p className="text-xs text-muted-foreground">
-                  Statistik visar antal arbetspass de senaste 6 månaderna
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-end">
-            <Button onClick={() => setSelectedEmployee(null)}>
-              Stäng
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <EmployeeDetailsDialog
+  employee={selectedEmployee}
+  onOpenChange={(open) => !open && setSelectedEmployee(null)}
+  employeeStations={employeeStations}
+  stationStats={stationStats}
+  recentWork={recentWork}
+  stations={STATIONS}
+  onToggleStation={toggleStation}
+/>
     </div>
   );
 };
